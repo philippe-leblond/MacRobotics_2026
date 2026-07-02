@@ -299,24 +299,13 @@ class StateMachineNode(Node):
         # ==================================================
         elif self.state == RobotState.PLANT_POSITIONING:
 
-            self.motion_mode_pub.publish(
-                Int32(data=15)
-            )
-
-            self.line_mode_pub.publish(
-                Int32(data=6)
-            )
+            self.motion_mode_pub.publish(Int32(data=15))
+            self.line_mode_pub.publish(Int32(data=6))
 
             if self.plant_aligned:
 
-                self.motion_mode_pub.publish(
-                    Int32(data=0)
-                )
-
-                self.get_logger().info(
-                    "Plant aligned"
-                )
-
+                self.motion_mode_pub.publish(Int32(data=0))
+                self.get_logger().info("Plant aligned")
                 self.state = RobotState.PLANT_ACT
 
         
@@ -327,52 +316,31 @@ class StateMachineNode(Node):
         elif self.state == RobotState.PLANT_DETECTED:
 
             if not self.camera_request_sent:
-
-                self.camera_request_pub.publish(
-                    Bool(data=True)
-                )
-
+                self.camera_request_pub.publish(Bool(data=True))
                 self.camera_request_sent = True
-
-                self.get_logger().info(
-                    "Camera request sent"
-                )
+                self.get_logger().info("Camera request sent")
 
             if self.camera_choice == 0:
-
-                self.get_logger().info(
-                    "Yellow plant on LEFT -> positioning"
-                )
-
+                self.get_logger().info("Yellow plant on LEFT -> positioning")
                 self.plant_aligned = False
-
                 self.state = RobotState.PLANT_POSITIONING
 
             elif self.camera_choice == 1:
-
-                self.get_logger().info(
-                    "Yellow plant on RIGHT -> positioning"
-                )
-
+                self.get_logger().info("Yellow plant on RIGHT -> positioning")
                 self.plant_aligned = False
-
                 self.state = RobotState.PLANT_POSITIONING
 
-            elif self.camera_choice == -1:
-
-                pass
+            elif self.camera_choice == 3:
+                
+                self.get_logger().warn("Camera failed. Skipping plant.")
+                self.wait_start = time.time()
+                self.state = RobotState.WAIT
 
             elif self.camera_choice == 2:
-
-                self.get_logger().info(
-                    "Healthy plant -> skipping"
-                )
-
+                self.get_logger().info("Healthy plant -> skipping")
                 self.camera_choice = -1
                 self.camera_request_sent = False
-
                 self.wait_start = time.time()
-
                 self.state = RobotState.WAIT
 
         # ==================================================

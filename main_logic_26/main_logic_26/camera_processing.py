@@ -229,7 +229,7 @@ class CameraProcessingNode(Node):
                 self.publish_led_control(0)  # LED 0 ON
                 self.publish_display([1,0,0])  # Display 0 plants
         else:
-            self.publish_camera_choice(-1)
+            self.publish_camera_choice(3)  # No plants detected
             self.publish_led_control(-1)  # All LEDs OFF
             self.publish_display([0,0,0])  # Display no plants
 
