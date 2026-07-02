@@ -1,13 +1,19 @@
 import time
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Float32MultiArray, Bool, Int32
+from std_msgs.msg import Float32, Float32MultiArray, Bool, Int32
 
 
 class UltrasonicProcessingNode(Node):
 
     def __init__(self):
         super().__init__('ultrasonic_processing_node')
+
+        # -------------------------
+        # PID Plant Alignment
+        # -------------------------
+        self.kp = 0.03
+        self.pid_deadband = 1.0
 
         # -------------------------
         # Parameters
@@ -44,52 +50,52 @@ class UltrasonicProcessingNode(Node):
 
         self.row_plants = {
             1: [
-                (3, ">", 43),
-                (3, ">", 65),
-                (3, ">", 92),
-                (1, "<", 97),
-                (1, "<", 71),
-                (1, "<", 44),
+                (3, ">", 43, 40),
+                (3, ">", 65, 60),
+                (3, ">", 92, 90),
+                (1, "<", 97, 94),
+                (1, "<", 71, 68),
+                (1, "<", 44, 40),
             ],
             2: [
-                (1, ">", 43),
-                (1, ">", 70),
-                (1, ">", 96),
-                (3, "<", 93),
-                (3, "<", 66),
-                (3, "<", 44),
+                (1, ">", 43, 40),
+                (1, ">", 70, 65),
+                (1, ">", 96, 92),
+                (3, "<", 93, 90),
+                (3, "<", 66, 65),
+                (3, "<", 44, 43),
             ],
             3: [
-                (3, ">", 43),
-                (3, ">", 65),
-                (3, ">", 92),
-                (1, "<", 97),
-                (1, "<", 71),
-                (1, "<", 44),
+                (3, ">", 43, 40),
+                (3, ">", 65, 60),
+                (3, ">", 92, 90),
+                (1, "<", 97, 94),
+                (1, "<", 71, 68),
+                (1, "<", 44, 40),
             ],
             4: [
-                (1, ">", 43),
-                (1, ">", 70),
-                (1, ">", 96),
-                (3, "<", 93),
-                (3, "<", 66),
-                (3, "<", 44),
+                (1, ">", 43, 40),
+                (1, ">", 70, 65),
+                (1, ">", 96, 92),
+                (3, "<", 93, 90),
+                (3, "<", 66, 65),
+                (3, "<", 44, 43),
             ],
             5: [
-                (3, ">", 43),
-                (3, ">", 65),
-                (3, ">", 92),
-                (1, "<", 97),
-                (1, "<", 71),
-                (1, "<", 44),
+                (3, ">", 43, 40),
+                (3, ">", 65, 60),
+                (3, ">", 92, 90),
+                (1, "<", 97, 94),
+                (1, "<", 71, 68),
+                (1, "<", 44, 40),
             ],
             6: [
-                (1, ">", 43),
-                (1, ">", 70),
-                (1, ">", 96),
-                (3, "<", 93),
-                (3, "<", 66),
-                (3, "<", 44),
+                (1, ">", 43, 40),
+                (1, ">", 70, 65),
+                (1, ">", 96, 92),
+                (3, "<", 93, 90),
+                (3, "<", 66, 65),
+                (3, "<", 44, 43),
             ],
         }
 
@@ -189,6 +195,12 @@ class UltrasonicProcessingNode(Node):
 
         self.before_row_follow_pub = self.create_publisher(
             Bool, '/before_row_follow_detected', 10)
+        
+        self.plant_pid_pub = self.create_publisher(
+            Float32, '/plant_pid_output', 10)
+
+        self.plant_position_reached_pub = self.create_publisher(
+            Bool,'/plant_position_reached', 10)
 
         # -------------------------
         # Subscriptions
@@ -329,7 +341,7 @@ class UltrasonicProcessingNode(Node):
         # table = self.row_plants.get(self.current_row, None)
 
         if table is not None and self.current_plant < len(table):
-            sensor, op, threshold = table[self.current_plant]
+            sensor, op, threshold, pid_target = table[self.current_plant]
             distance = distances[sensor]
 
             if not self.plant_latched:
@@ -483,6 +495,42 @@ class UltrasonicProcessingNode(Node):
         self.before_row_follow_pub.publish(Bool(data=before_row_follow_detected))
         self.row_change_start_pub.publish(Bool(data=False))
 
+        # -------------------------
+        # PID plant alignment
+        # -------------------------
+
+        if self.current_motion_state == 15:
+
+            config = self.get_current_plant_config()
+
+            if config is not None:
+
+                sensor, op, threshold, pid_target = config
+
+                distance = distances[sensor]
+
+                pid_output = self.compute_p_output(
+                    distance,
+                    pid_target,
+                    op
+                )
+
+                error = self.compute_plant_error(
+                    distance,
+                    pid_target,
+                    op
+                )
+
+                position_reached = abs(error) < self.pid_deadband
+
+                self.plant_position_reached_pub.publish(
+                    Bool(data=position_reached)
+                )
+
+                self.plant_pid_pub.publish(
+                    Float32(data=pid_output)
+                )
+
         # if arrival_detected:
         #     self.get_logger().info(
         #         f"ROW CHANGE ARRIVAL DETECTED: {sensor_name}={distances[sensor_index]:.1f}cm > {threshold}cm "
@@ -509,7 +557,7 @@ class UltrasonicProcessingNode(Node):
             self.last_distance_log = current_time
 
     # =========================
-    # Sensor selection logic
+    # HELPERS
     # =========================
     def get_row_end_sensor_index(self):
         """
@@ -520,6 +568,46 @@ class UltrasonicProcessingNode(Node):
             return 1  # U2
         elif self.current_row % 2 == 0: # even rows (2,4,6)
             return 3  # U4
+        
+    def get_current_plant_config(self):
+
+        if self.current_row not in self.row_plants:
+            return None
+
+        table = self.row_plants[self.current_row]
+
+        if self.current_plant >= len(table):
+            return None
+
+        return table[self.current_plant]
+
+
+    def compute_plant_error(self, distance, target, op):
+
+        if op == ">":
+            return target - distance
+
+        elif op == "<":
+            return distance - target
+
+        return 0.0
+
+
+    def compute_p_output(self, distance, target, op):
+
+        error = self.compute_plant_error(
+            distance,
+            target,
+            op
+        )
+
+        if abs(error) < self.pid_deadband:
+            return 0.0
+
+        return max(
+            -0.25,
+            min(0.25, self.kp * error)
+        )
 
 
 
