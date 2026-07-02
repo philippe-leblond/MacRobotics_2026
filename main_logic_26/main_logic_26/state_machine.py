@@ -15,13 +15,14 @@ class RobotState(Enum):
     ROW_FOLLOW = 4
     ROW_SLOW = 5
     PLANT_DETECTED = 6
-    PLANT_ACT = 7
-    WAIT = 8
-    FINISH_ROW = 9
-    BEFORE_ROW_CHANGE = 10
-    ROW_CHANGE = 11
-    BEFORE_ROW_FOLLOW = 12
-    FINISH = 13
+    PLANT_POSITIONING = 7
+    PLANT_ACT = 8
+    WAIT = 9
+    FINISH_ROW = 10
+    BEFORE_ROW_CHANGE = 11
+    ROW_CHANGE = 12
+    BEFORE_ROW_FOLLOW = 13
+    FINISH = 14
 
 
 class StateMachineNode(Node):
@@ -68,6 +69,7 @@ class StateMachineNode(Node):
         self.create_subscription(Bool, '/before_row_follow_detected', self.before_row_follow_cb, 10)
         # self.create_subscription(Bool, '/row_change_arrival_detected', self.row_change_arrival_cb, 10) 
         self.create_subscription(Int32MultiArray, '/line_falling_edges', self.falling_edges_cb, 10)
+        self.create_subscription(Bool, '/plant_position_reached', self.plant_position_cb, 10)
 
 
         # ---------- Internal state ----------
@@ -76,6 +78,7 @@ class StateMachineNode(Node):
         self.plant_count = 0
         self._last_log = 0.0 # loggin purpose only
         self._last_plant_log_time = 0.0 # logging purpose only
+        self.plant_aligned = False
 
         self.row_end = False
         self.forward_pair_black = False
@@ -97,9 +100,6 @@ class StateMachineNode(Node):
         self.end_course_detected = False
         self.max_rows = 5 # when five it's time to go in the finish and the thresold it >=5
         self.falling_edges = [0,0,0,0]
-
-        
-        self.wait_start = None
 
         self.timer = self.create_timer(0.1, self.step)
 
@@ -144,6 +144,9 @@ class StateMachineNode(Node):
 
     def falling_edges_cb(self, msg):
         self.falling_edges = msg.data
+
+    def plant_position_cb(self, msg):
+        self.plant_aligned = msg.data
 
     def force_state_cb(self, msg):
         try:
@@ -276,14 +279,46 @@ class StateMachineNode(Node):
             
             # ultrasonic node stops us using plant thresholds
             if self.plant_detected:
-                self.motion_mode_pub.publish(Int32(data=0))  # STOP robot
 
-                # Reset state for new decision
+                self.motion_mode_pub.publish(
+                    Int32(data=0)
+                )
+
                 self.camera_choice = -1
                 self.camera_request_sent = False
+                self.plant_aligned = False
 
-                self.wait_start = time.time()
+                self.get_logger().info(
+                    "Plant detected -> requesting camera classification"
+                )
+
                 self.state = RobotState.PLANT_DETECTED
+        
+        # ==================================================
+        # PLANT POSITIONING
+        # ==================================================
+        elif self.state == RobotState.PLANT_POSITIONING:
+
+            self.motion_mode_pub.publish(
+                Int32(data=15)
+            )
+
+            self.line_mode_pub.publish(
+                Int32(data=6)
+            )
+
+            if self.plant_aligned:
+
+                self.motion_mode_pub.publish(
+                    Int32(data=0)
+                )
+
+                self.get_logger().info(
+                    "Plant aligned"
+                )
+
+                self.state = RobotState.PLANT_ACT
+
         
 
         # ==================================================
@@ -291,35 +326,54 @@ class StateMachineNode(Node):
         # ================================================== 
         elif self.state == RobotState.PLANT_DETECTED:
 
-            # Send request ONLY ONCE
             if not self.camera_request_sent:
-                self.camera_request_pub.publish(Bool(data=True))
-                self.camera_request_sent = True # look in the camera node if the camera_request vaariable will change to false after sending
-                self.get_logger().info("Camera request sent")
 
-            # Wait for camera decision
-            if self.camera_choice != -1:
+                self.camera_request_pub.publish(
+                    Bool(data=True)
+                )
 
-                if self.camera_choice == 0:
-                    self.get_logger().info("Camera says LEFT")
-                    self.state = RobotState.PLANT_ACT
-                elif self.camera_choice == 1:
-                    self.get_logger().info("Camera says RIGHT")
-                    self.state = RobotState.PLANT_ACT
-                else:
-                    self.get_logger().info("No plants to remove → Don't activate servo")
-                    self.camera_choice = -1  # reset to avoid issues
-                    self.camera_request_sent = False
-                    self.state = RobotState.WAIT # just wait 1 second and continue the planting process and skip the plant actuation since there are no plants
-                
+                self.camera_request_sent = True
 
-            # Timeout fallback (VERY important)
-            #elif time.time() - self.wait_start > 0.5:   
-            #self.get_logger().warn("Camera timeout → ski
-            #self.camera_choice = -1
-            #self.camera_request_sent = False
+                self.get_logger().info(
+                    "Camera request sent"
+                )
 
-            #    self.state = RobotState.WAIT
+            if self.camera_choice == 0:
+
+                self.get_logger().info(
+                    "Yellow plant on LEFT -> positioning"
+                )
+
+                self.plant_aligned = False
+
+                self.state = RobotState.PLANT_POSITIONING
+
+            elif self.camera_choice == 1:
+
+                self.get_logger().info(
+                    "Yellow plant on RIGHT -> positioning"
+                )
+
+                self.plant_aligned = False
+
+                self.state = RobotState.PLANT_POSITIONING
+
+            elif self.camera_choice == -1:
+
+                pass
+
+            elif self.camera_choice == 2:
+
+                self.get_logger().info(
+                    "Healthy plant -> skipping"
+                )
+
+                self.camera_choice = -1
+                self.camera_request_sent = False
+
+                self.wait_start = time.time()
+
+                self.state = RobotState.WAIT
 
         # ==================================================
         # PLANT ACT

@@ -9,12 +9,12 @@ from std_msgs.msg import Int32, Bool, Int32MultiArray
 from ament_index_python.packages import get_package_share_directory
 
 
-CAMERA_INDEX = "/dev/video0"
-#CAMERA_INDEX = "/dev/v4l/by-id/usb-Suyin_HD_Camera_200910120001-video-index0"
-FRAME_RATE = 10
+#CAMERA_INDEX = "/dev/video0"
+CAMERA_INDEX = "/dev/v4l/by-id/usb-XZC-260109-A_Streaming_Webcam_Audio_01.00.00-video-index0"
+FRAME_RATE = 5
 
-MIN_AREA = 5000
-HEIGHT_THRESHOLD = 150
+MIN_AREA = 3000
+HEIGHT_THRESHOLD = 125
 
 
 # -----------------------------
@@ -71,6 +71,14 @@ class CameraProcessingNode(Node):
 
         self.yellow_lower, self.yellow_upper, self.green_lower, self.green_upper = loaded
 
+        # Store results for one capture cycle
+        self.plant_results = [0,0,0]
+
+
+        # Publisher
+        self.led_control_pub = self.create_publisher(Int32, 'led_control', 10)
+        self.display_pub = self.create_publisher(Int32MultiArray, 'display_control', 10)
+
         # Camera setup
         #self.cap = cv2.VideoCapture(CAMERA_INDEX)
         self.cap = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_V4L2)
@@ -80,6 +88,8 @@ class CameraProcessingNode(Node):
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        self.cap.set(cv2.CAP_PROP_AUTO_WB, 0) # Turn OFF auto white balance
+        self.cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 3000) # Manually set white balance (tune this!)
 
 
         if not self.cap.isOpened():
@@ -211,11 +221,11 @@ class CameraProcessingNode(Node):
                         self.publish_led_control(2)  # LED 2 ON
                         self.publish_display([0,0,1])  # Display 2 plants
                 else:
-                    self.publish_camera_choice(-1)
+                    self.publish_camera_choice(2)
                     self.publish_led_control(1)  # LED 1 ON
                     self.publish_display([0,1,0])  # Display 1 plant
             else:
-                self.publish_camera_choice(-1)
+                self.publish_camera_choice(2)
                 self.publish_led_control(0)  # LED 0 ON
                 self.publish_display([1,0,0])  # Display 0 plants
         else:
