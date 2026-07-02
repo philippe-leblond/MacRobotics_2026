@@ -198,24 +198,24 @@ class StateMachineNode(Node):
             self._last_plant_log_time = now
 
 
-        # ===== INIT: SLIDE LEFT =====
-        if self.state == RobotState.INIT_SLIDE_LEFT:
-            self.line_mode_pub.publish(Int32(data=6))   # NO LINE DETECTION
-            self.motion_mode_pub.publish(Int32(data=14))      # SLOW SLIDE RIGHT
-
-            if self.init_slide_wall_1_detected:
-                self.get_logger().info("Init slide 1 complete")
-                self.state = RobotState.INIT_FORWARD_1
-
         # ===== INIT: MOVE FORWARD =====
         elif self.state == RobotState.INIT_FORWARD_1:
             self.motion_mode_pub.publish(Int32(data=5))  # MOVE FORWARD
             self.line_mode_pub.publish(Int32(data=6))  # NO LINE DETECTION
-        
+
             if self.falling_edges[1] == 1:  # Assuming L2 is the sensor
-                self.falling_edges = [0,0,0,0] # reset the falling edge
-                self.get_logger().info("Init move forward complete")
-                self.state = RobotState.INIT_CHANGE_ROW
+                    self.falling_edges = [0,0,0,0] # reset the falling edge
+                    self.get_logger().info("Init move forward complete")
+                    self.state = RobotState.INIT_CHANGE_ROW
+        
+        # ===== INIT: ROW CHANGE =====
+        elif self.state == RobotState.INIT_CHANGE_ROW:
+            self.motion_mode_pub.publish(Int32(data=18))  # SLIDE RIGHT
+            self.line_mode_pub.publish(Int32(data=5))    # L1/L4
+
+            if self.init_slide_wall_2_detected: #NEED TO ADD BEFORE ROW FOLLOW DETECTION
+                self.get_logger().info("Init row change complete")
+                self.state = RobotState.INIT_BEFORE_ROW_FOLLOW
         
         # ===== INIT: ROW CHANGE =====
         elif self.state == RobotState.INIT_CHANGE_ROW:
