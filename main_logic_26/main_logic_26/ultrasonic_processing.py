@@ -49,6 +49,8 @@ class UltrasonicProcessingNode(Node):
         # -------------------------
 
         self.row_plants = {
+
+            # Sensor index, operator, between_dashes, pid_target
             1: [
                 (3, ">", 50, 40),
                 (3, ">", 70, 60),
@@ -521,11 +523,11 @@ class UltrasonicProcessingNode(Node):
 
                 position_reached = abs(error) < self.pid_deadband
 
-                self.plant_position_reached_pub.publish(
+                self.plant_position_reached_pub.publish( # sending to state machine to go to next plant
                     Bool(data=position_reached)
                 )
 
-                self.plant_pid_pub.publish(
+                self.plant_pid_pub.publish( # sending to motors
                     Float32(data=pid_output)
                 )
 

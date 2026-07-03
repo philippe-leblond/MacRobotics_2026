@@ -1,21 +1,21 @@
 {
-    "green_lower": [
-        35,
-        80,
-        80
-    ],
-    "green_upper": [
-        85,
-        255,
-        255
-    ],
     "yellow_lower": [
         15,
-        94,
-        80
+        128,
+        107
     ],
     "yellow_upper": [
         35,
+        255,
+        255
+    ],
+    "green_lower": [
+        35,
+        123,
+        94
+    ],
+    "green_upper": [
+        85,
         255,
         255
     ]
