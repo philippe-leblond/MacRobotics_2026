@@ -86,7 +86,7 @@ class SimpleDisplayNode(Node):
 
 
     def save_final_screen(self):
-        save_dir = "/home/corn/ros2_mr26/src/identification_logic_26/identification_logic_26/final_report"
+        save_dir = "/home/corn/ros2_mr26/src/main_logic_26/main_logic_26/final_report"
 
         screen = np.ones((self.height, self.width, 3), dtype=np.uint8) * 255
 

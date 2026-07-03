@@ -11,7 +11,7 @@ class RobotState(Enum):
     INIT_SLIDE_LEFT = 0 # can add more state for initialization if needed
     INIT_FORWARD_1 = 1
     INIT_CHANGE_ROW = 2
-    INIT_BEFORE_ROW_FORWARD = 3
+    INIT_BEFORE_ROW_FOLLOW = 3
     ROW_FOLLOW = 4
     ROW_SLOW = 5
     PLANT_DETECTED = 6
@@ -41,7 +41,7 @@ class StateMachineNode(Node):
         # ---------- Motor serial ----------
         self.serMotor = None
         try:
-            self.serMotor = serial.Serial('/dev/ttyUSB0', 115200, timeout=1) # need to change it back on the RPi
+            self.serMotor = serial.Serial('/dev/ttyUSB1', 115200, timeout=1) # need to change it back on the RPi
             self.get_logger().info("Opened serial port /dev/ttyUSB1")
         except Exception as e:
             self.get_logger().error(f"Failed to open serial port: {e}")
@@ -197,6 +197,14 @@ class StateMachineNode(Node):
             )
             self._last_plant_log_time = now
 
+        # ===== INIT: SLIDE LEFT =====
+        if self.state == RobotState.INIT_SLIDE_LEFT:
+            self.line_mode_pub.publish(Int32(data=6))   # NO LINE DETECTION
+            self.motion_mode_pub.publish(Int32(data=14))      # SLOW SLIDE RIGHT ##WHY data=8 doesn't work
+
+            if self.init_slide_wall_1_detected:
+                self.get_logger().info("Init slide 1 complete")
+                self.state = RobotState.INIT_FORWARD_1
 
         # ===== INIT: MOVE FORWARD =====
         elif self.state == RobotState.INIT_FORWARD_1:
@@ -217,18 +225,9 @@ class StateMachineNode(Node):
                 self.get_logger().info("Init row change complete")
                 self.state = RobotState.INIT_BEFORE_ROW_FOLLOW
         
-        # ===== INIT: ROW CHANGE =====
-        elif self.state == RobotState.INIT_CHANGE_ROW:
-            self.motion_mode_pub.publish(Int32(data=4))  # SLIDE RIGHT
-            self.line_mode_pub.publish(Int32(data=5))    # L1/L4
-
-            if self.init_slide_wall_2_detected: #NEED TO ADD BEFORE ROW FOLLOW DETECTION
-                self.get_logger().info("Init slide 2 complete")
-                self.state = RobotState.INIT_BEFORE_ROW_FORWARD
-        
         #==== INIT: BEFORE ROW FORWARD =====
-        elif self.state == RobotState.INIT_BEFORE_ROW_FORWARD:
-            self.motion_mode_pub.publish(Int32(data=14))  # SLIDE RIGHT SLOW
+        elif self.state == RobotState.INIT_BEFORE_ROW_FOLLOW:
+            self.motion_mode_pub.publish(Int32(data=16))  # SLIDE RIGHT EVEN ROW
             self.line_mode_pub.publish(Int32(data=6))  # NO LINE DETECTION
 
             if self.falling_edges[1] == 1:  # Assuming L2 is the sensor
@@ -247,16 +246,13 @@ class StateMachineNode(Node):
             if self.row % 2 == 1:
                 self.line_mode_pub.publish(Int32(data=0))  # ROW_FOLLOW_ODD
                 self.motion_mode_pub.publish(Int32(data=1))     # LINE FOLLOW FORWARD
-            else:
-                self.line_mode_pub.publish(Int32(data=2))  # ROW_FOLLOW_EVEN
-                self.motion_mode_pub.publish(Int32(data=2))     # LINE FOLLOW BACKWARD
-
-            if self.row % 2 == 1:
                 if self.forward_pair_black and not self.on_dashed_line:
                     self.on_dashed_line = True
                     self.get_logger().info("Forward dashed line detected")
                     self.state = RobotState.ROW_SLOW
             else:
+                self.line_mode_pub.publish(Int32(data=2))  # ROW_FOLLOW_EVEN
+                self.motion_mode_pub.publish(Int32(data=2))     # LINE FOLLOW BACKWARD
                 if self.backward_pair_black and not self.on_dashed_line:
                     self.on_dashed_line = True
                     self.get_logger().info("Backward dashed line detected")
@@ -293,22 +289,6 @@ class StateMachineNode(Node):
                 )
 
                 self.state = RobotState.PLANT_DETECTED
-        
-        # ==================================================
-        # PLANT POSITIONING
-        # ==================================================
-        elif self.state == RobotState.PLANT_POSITIONING:
-
-            self.motion_mode_pub.publish(Int32(data=15))
-            self.line_mode_pub.publish(Int32(data=6))
-
-            if self.plant_aligned:
-
-                self.motion_mode_pub.publish(Int32(data=0))
-                self.get_logger().info("Plant aligned")
-                self.state = RobotState.PLANT_ACT
-
-        
 
         # ==================================================
         # PLANT DETECTED
@@ -342,6 +322,20 @@ class StateMachineNode(Node):
                 self.camera_request_sent = False
                 self.wait_start = time.time()
                 self.state = RobotState.WAIT
+        
+        # ==================================================
+        # PLANT POSITIONING
+        # ==================================================
+        elif self.state == RobotState.PLANT_POSITIONING:
+
+            self.motion_mode_pub.publish(Int32(data=15))
+            self.line_mode_pub.publish(Int32(data=6))
+
+            if self.plant_aligned:
+
+                self.motion_mode_pub.publish(Int32(data=0))
+                self.get_logger().info("Plant aligned")
+                self.state = RobotState.PLANT_ACT
 
         # ==================================================
         # PLANT ACT
@@ -350,14 +344,12 @@ class StateMachineNode(Node):
 
             if self.camera_choice == 0:
                 # LEFT
-                if self.serServo:
-                    self.serServo.write(b"servo1\n")
+                self.serServo.write(b"<servo1>")
                 self.get_logger().info("Executing LEFT plant (servo1)")
 
             elif self.camera_choice == 1:
                 # RIGHT
-                if self.serServo:
-                    self.serServo.write(b"servo2\n")
+                self.serServo.write(b"<servo2>")
                 self.get_logger().info("Executing RIGHT plant (servo2)")
 
             else:

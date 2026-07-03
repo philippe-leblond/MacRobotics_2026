@@ -19,17 +19,17 @@ class UltrasonicProcessingNode(Node):
         # Parameters
         # -------------------------
         
-        self.declare_parameter('init_slide_1_threshold', 203.0) # u1 < 203
+        self.declare_parameter('init_slide_1_threshold', 203.0) # u3 < 203
         self.init_slide_1_threshold = self.get_parameter('init_slide_1_threshold').value
 
-        self.declare_parameter('init_slide_2_threshold', 38.0) # U3 > 38
+        self.declare_parameter('init_slide_2_threshold', 36.0) # U1 > 36
         self.init_slide_2_threshold = self.get_parameter('init_slide_2_threshold').value
 
-        self.declare_parameter('init_slide_3_threshold', 40.0) # u3 > 40
-        self.init_slide_3_threshold = self.get_parameter('init_slide_3_threshold').value
+        # self.declare_parameter('init_slide_3_threshold', 40.0) # u3 > 40
+        # self.init_slide_3_threshold = self.get_parameter('init_slide_3_threshold').value
 
-        self.declare_parameter('init_forward_1_threshold', 9.0) # U4 > 9
-        self.init_forward_1_threshold = self.get_parameter('init_forward_1_threshold').value
+        # self.declare_parameter('init_forward_1_threshold', 9.0) # U4 > 9
+        # self.init_forward_1_threshold = self.get_parameter('init_forward_1_threshold').value
 
         #self.declare_parameter('init_forward_2_threshold', 15.0)
         #self.init_forward_2_threshold = self.get_parameter('init_forward_2_threshold').value
@@ -50,20 +50,20 @@ class UltrasonicProcessingNode(Node):
 
         self.row_plants = {
             1: [
-                (3, ">", 43, 40),
-                (3, ">", 65, 60),
-                (3, ">", 92, 90),
-                (1, "<", 97, 94),
-                (1, "<", 71, 68),
-                (1, "<", 44, 40),
+                (3, ">", 37, 40),
+                (3, ">", 57, 60),
+                (1, "<", 103, 100),
+                (1, "<", 92, 89),
+                (1, "<", 66, 63),
+                (1, "<", 42, 35),
             ],
             2: [
-                (1, ">", 43, 40),
-                (1, ">", 70, 65),
-                (1, ">", 96, 92),
-                (3, "<", 93, 90),
-                (3, "<", 66, 65),
-                (3, "<", 44, 43),
+                (3, ">", 37, 40),
+                (3, ">", 57, 60),
+                (1, "<", 113, 110),
+                (1, "<", 92, 89),
+                (1, "<", 66, 63),
+                (1, "<", 41, 38),
             ],
             3: [
                 (3, ">", 43, 40),
@@ -303,24 +303,20 @@ class UltrasonicProcessingNode(Node):
         # -------------------------
         # Init detection
         # -------------------------
-        if self.current_motion_state == 14:  # SLOW SLIDE RIGHT init
-            detected = distances[0] < self.init_slide_1_threshold
-            self.init_slide_wall_1_pub.publish(Bool(data=detected))
-            # detected = distances[2] > self.init_slide_3_threshold # Before going in the row follow
-            # self.init_slide_wall_3_pub.publish(Bool(data=detected))
-        elif self.current_motion_state == 5:  # FORWARD init
-            detected = distances[3] > self.init_forward_1_threshold
-            self.init_forward_wall_1_pub.publish(Bool(data=detected))
-        elif self.current_motion_state == 4:  # LINE_FOLLOW_SLIDE_RIGHT init
-            detected = distances[2] > self.init_slide_2_threshold
-            self.init_slide_wall_2_pub.publish(Bool(data=detected))
+        # INIT SLIDE 1 (wall detection)
+        det_slide_1 = distances[2] < self.init_slide_1_threshold
 
-        else:
-            self.init_slide_wall_1_pub.publish(Bool(data=False))
-            self.init_forward_wall_1_pub.publish(Bool(data=False))
-            self.init_slide_wall_2_pub.publish(Bool(data=False))
-            # self.init_slide_wall_3_pub.publish(Bool(data=False))
-            #self.init_forward_wall_2_pub.publish(Bool(data=False))
+        # INIT FORWARD
+        # det_forward_1 = distances[3] > self.init_forward_1_threshold
+
+        # INIT SLIDE 2 (your U1 > 36 logic)
+        det_slide_2 = distances[0] > self.init_slide_2_threshold
+
+
+        # Publish ALL detections always
+        self.init_slide_wall_1_pub.publish(Bool(data=det_slide_1))
+        # self.init_forward_wall_1_pub.publish(Bool(data=det_forward_1))
+        self.init_slide_wall_2_pub.publish(Bool(data=det_slide_2))
 
 
         # -------------------------
@@ -333,9 +329,11 @@ class UltrasonicProcessingNode(Node):
 
         # Optional: keep motion constraint (recommended for now)
         if self.current_row in self.row_plants:
-            if (self.current_row % 2 == 1 and self.current_motion_state == 11) or \
-            (self.current_row % 2 == 0 and self.current_motion_state == 12):
+            if self.current_motion_state == 11 or self.current_motion_state == 12:
                 table = self.row_plants[self.current_row]
+            else:
+                table = None
+            
 
         # Alternative (simpler, no motion filtering)
         # table = self.row_plants.get(self.current_row, None)
@@ -475,12 +473,12 @@ class UltrasonicProcessingNode(Node):
 
                 sensor_name = f"U{sensor_index+1}"
 
-                if before_row_follow_detected:
-                    self.get_logger().info(
-                        f"BEFORE ROW FOLLOW DETECTED: {sensor_name}="
-                        f"{distances[sensor_index]:.1f}cm (threshold {threshold}cm) "
-                        f"(row {self.current_row})"
-                    )
+                # if before_row_follow_detected:
+                #     self.get_logger().info(
+                #         f"BEFORE ROW FOLLOW DETECTED: {sensor_name}="
+                #         f"{distances[sensor_index]:.1f}cm (threshold {threshold}cm) "
+                #         f"(row {self.current_row})"
+                #     )
             else:
                 before_row_follow_detected = False
 

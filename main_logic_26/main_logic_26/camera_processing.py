@@ -71,38 +71,7 @@ class CameraProcessingNode(Node):
 
         self.yellow_lower, self.yellow_upper, self.green_lower, self.green_upper = loaded
 
-        # Store results for one capture cycle
-        self.plant_results = [0,0,0]
-
-
-        # Publisher
-        self.led_control_pub = self.create_publisher(Int32, 'led_control', 10)
-        self.display_pub = self.create_publisher(Int32MultiArray, 'display_control', 10)
-
-        # Camera setup
-        #self.cap = cv2.VideoCapture(CAMERA_INDEX)
-        self.cap = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_V4L2)
-        
-        # Stabilize camera
-        self.cap.set(cv2.CAP_PROP_FPS, FRAME_RATE)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        self.cap.set(cv2.CAP_PROP_AUTO_WB, 0) # Turn OFF auto white balance
-        self.cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 3000) # Manually set white balance (tune this!)
-
-
-        if not self.cap.isOpened():
-            self.get_logger().error("Failed to open camera")
-            raise RuntimeError("Camera failed")
-
-        self.get_logger().info("Camera initialized")
-
-        # Latest frame storage        
-        self.latest_frame = None
-
-        # Continuous capture timer
-        self.create_timer(1.0 / FRAME_RATE, self.update_frame)
+        self.get_logger().info("Camera will be opened on each request")
 
         # Store results for one capture cycle
         self.plant_results = [0,0,0]
@@ -123,37 +92,33 @@ class CameraProcessingNode(Node):
         )
     
     # -----------------------------    
-    # Continuous frame capture    
+    # One capture    
     # -----------------------------    
-    def update_frame(self):
-        if self.cap is None:
-            return
+    def capture_one_frame(self):
+        cap = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_V4L2)
 
-        ret, frame = self.cap.read()
+        try:
+            cap.set(cv2.CAP_PROP_FPS, FRAME_RATE)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            cap.set(cv2.CAP_PROP_AUTO_WB, 0)
+            cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 3000)
 
-        if ret:
-            self.latest_frame = frame
-        else:
-            self.get_logger().warn("Camera stream lost, attempting recovery...")
+            if not cap.isOpened():
+                self.get_logger().warn("Failed to open camera")
+                return None
 
-            # Release camera
-            self.cap.release()
+            ret, frame = cap.read()
 
-            time.sleep(1.0)
+            if not ret:
+                self.get_logger().warn("Frame capture failed")
+                return None
 
-            # Try reopening
-            self.cap = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_V4L2)
+            return frame
 
-            # Reapply settings
-            self.cap.set(cv2.CAP_PROP_FPS, FRAME_RATE)
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-
-            if self.cap.isOpened():
-                self.get_logger().info("Camera successfully reconnected")
-            else:
-                self.get_logger().error("Camera reconnection failed")
+        finally:
+            cap.release()
     # -----------------------------
     # Publishers
     # -----------------------------
@@ -240,12 +205,12 @@ class CameraProcessingNode(Node):
         if not msg.data:
             return
 
-        ret, image = self.cap.read()
-        if not ret:
-            self.get_logger().warn("Frame capture failed")
-            self.publish_camera_choice(-1)
-            self.publish_led_control(-1)  # All LEDs OFF
-            self.publish_display([0,0,0])  # Display no plants
+        image = self.capture_one_frame()
+
+        if image is None:
+            self.publish_camera_choice(3)
+            self.publish_led_control(-1)
+            self.publish_display([0,0,0])
             return
 
         self.process_frame(image)
@@ -254,10 +219,6 @@ class CameraProcessingNode(Node):
     # Cleanup
     # -----------------------------
     def destroy_node(self):
-        if self.cap is not None:
-            self.cap.release()
-            self.get_logger().info("Camera released")
-
         super().destroy_node()
 
 
