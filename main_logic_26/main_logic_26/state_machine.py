@@ -58,7 +58,7 @@ class StateMachineNode(Node):
         self.create_subscription(Bool, '/row_end', self.row_end_cb, 10)
         self.create_subscription(Bool, '/forward_pair_black', self.forward_pair_cb, 10)
         self.create_subscription(Bool, '/backward_pair_black', self.backward_pair_cb, 10)
-        self.create_subscription(Bool, '/plant_detected', self.plant_cb, 10)
+        self.create_subscription(Bool, '/between_dashes', self.between_dashes_cb, 10)
         self.create_subscription(Bool, '/init_slide_wall_1_detected', self.init_slide_1_cb, 10)
         self.create_subscription(Bool, '/init_slide_wall_2_detected', self.init_slide_2_cb, 10)
         # self.create_subscription(Bool, '/init_slide_wall_3_detected', self.init_slide_3_cb, 10)
@@ -83,14 +83,14 @@ class StateMachineNode(Node):
         self.row_end = False
         self.forward_pair_black = False
         self.backward_pair_black = False
-        self.plant_detected = False
+        self.between_dashes = False
         self.init_slide_wall_1_detected = False
         self.init_slide_wall_2_detected = False
         self.init_slide_wall_3_detected = False
         self.init_forward_wall_1_detected = False
         self.on_dashed_line = False
-        self.forward_pair_latched = False
-        self.backward_pair_latched = False
+        self.forward_pair_latched = True # I want it True for the first dash
+        self.backward_pair_latched = True # I want it True for the first dash
         self.camera_choice = -1   # -1 = no decision, 0 = LEFT, 1 = RIGHT
         self.camera_request_sent = False
         self.before_row_change_detected = False
@@ -115,8 +115,8 @@ class StateMachineNode(Node):
     def backward_pair_cb(self, msg):
         self.backward_pair_black = msg.data
     
-    def plant_cb(self, msg):
-        self.plant_detected = msg.data
+    def between_dashes_cb(self, msg):
+        self.between_dashes = msg.data
 
     def init_slide_1_cb(self, msg):
         self.init_slide_wall_1_detected = msg.data
@@ -160,7 +160,7 @@ class StateMachineNode(Node):
             #self.forward_pair_latched = False
             #self.backward_pair_latched = False
             self.on_dashed_line = False
-            self.plant_detected = False
+            self.between_dashes = False
             self.wait_start = None
             self.camera_choice = -1
             self.camera_request_sent = False
@@ -200,7 +200,7 @@ class StateMachineNode(Node):
         # ===== INIT: SLIDE LEFT =====
         if self.state == RobotState.INIT_SLIDE_LEFT:
             self.line_mode_pub.publish(Int32(data=6))   # NO LINE DETECTION
-            self.motion_mode_pub.publish(Int32(data=14))      # SLOW SLIDE RIGHT ##WHY data=8 doesn't work
+            self.motion_mode_pub.publish(Int32(data=8))      # SLOW SLIDE RIGHT ##WHY data=8 doesn't work
 
             if self.init_slide_wall_1_detected:
                 self.get_logger().info("Init slide 1 complete")
@@ -246,49 +246,72 @@ class StateMachineNode(Node):
             if self.row % 2 == 1:
                 self.line_mode_pub.publish(Int32(data=0))  # ROW_FOLLOW_ODD
                 self.motion_mode_pub.publish(Int32(data=1))     # LINE FOLLOW FORWARD
-                if self.forward_pair_black and not self.on_dashed_line:
+                if self.between_dashes: # change the plant detect to between two dashed detection
+                    self.forward_pair_latched = True
+                if self.forward_pair_black and self.forward_pair_latched and not self.on_dashed_line:
                     self.on_dashed_line = True
                     self.get_logger().info("Forward dashed line detected")
-                    self.state = RobotState.ROW_SLOW
+                    self.motion_mode_pub.publish(Int32(data=0))
+
+                    self.camera_choice = -1
+                    self.camera_request_sent = False
+                    self.plant_aligned = False
+
+                    self.get_logger().info("Plant detected -> requesting camera classification")
+
+                    self.state = RobotState.PLANT_DETECTED
+                    # self.state = RobotState.ROW_SLOW
             else:
                 self.line_mode_pub.publish(Int32(data=2))  # ROW_FOLLOW_EVEN
                 self.motion_mode_pub.publish(Int32(data=2))     # LINE FOLLOW BACKWARD
-                if self.backward_pair_black and not self.on_dashed_line:
+                if self.between_dashes: # change the plant detect to between two dashed detection
+                    self.backward_pair_latched = True
+                if self.backward_pair_black and self.backward_pair_latched and not self.on_dashed_line:
                     self.on_dashed_line = True
                     self.get_logger().info("Backward dashed line detected")
-                    self.state = RobotState.ROW_SLOW
+                    self.motion_mode_pub.publish(Int32(data=0))
+
+                    self.camera_choice = -1
+                    self.camera_request_sent = False
+                    self.plant_aligned = False
+
+                    self.get_logger().info("Plant detected -> requesting camera classification")
+
+                    self.state = RobotState.PLANT_DETECTED
+                    
+                    # self.state = RobotState.ROW_SLOW
 
 
         # ==================================================
         # ROW SLOW
         # ================================================== 
         # need to test the threshold between the moment where the robot waits 1 second for a plant goes back to the row_odd_run because now its going directly to thee row odd slow since it's directly [1,1,0,0]
-        elif self.state == RobotState.ROW_SLOW:
+        # elif self.state == RobotState.ROW_SLOW:
 
 
-            if self.row % 2 == 1:
-                self.motion_mode_pub.publish(Int32(data=11))  # slow forward
-                self.line_mode_pub.publish(Int32(data=6))     # NO LINE SENSORS
-            else:
-                self.motion_mode_pub.publish(Int32(data=12))  # slow backward   
-                self.line_mode_pub.publish(Int32(data=6))     # NO LINE SENSORS
+        #     if self.row % 2 == 1:
+        #         self.motion_mode_pub.publish(Int32(data=11))  # slow forward
+        #         self.line_mode_pub.publish(Int32(data=6))     # NO LINE SENSORS
+        #     else:
+        #         self.motion_mode_pub.publish(Int32(data=12))  # slow backward   
+        #         self.line_mode_pub.publish(Int32(data=6))     # NO LINE SENSORS
             
-            # ultrasonic node stops us using plant thresholds
-            if self.plant_detected:
+        #     # ultrasonic node stops us using plant thresholds
+        #     if self.plant_detected:
 
-                self.motion_mode_pub.publish(
-                    Int32(data=0)
-                )
+        #         self.motion_mode_pub.publish(
+        #             Int32(data=0)
+        #         )
 
-                self.camera_choice = -1
-                self.camera_request_sent = False
-                self.plant_aligned = False
+        #         self.camera_choice = -1
+        #         self.camera_request_sent = False
+        #         self.plant_aligned = False
 
-                self.get_logger().info(
-                    "Plant detected -> requesting camera classification"
-                )
+        #         self.get_logger().info(
+        #             "Plant detected -> requesting camera classification"
+        #         )
 
-                self.state = RobotState.PLANT_DETECTED
+        #         self.state = RobotState.PLANT_DETECTED
 
         # ==================================================
         # PLANT DETECTED

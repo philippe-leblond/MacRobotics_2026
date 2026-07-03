@@ -50,20 +50,20 @@ class UltrasonicProcessingNode(Node):
 
         self.row_plants = {
             1: [
-                (3, ">", 37, 40),
-                (3, ">", 57, 60),
-                (1, "<", 103, 100),
-                (1, "<", 92, 89),
-                (1, "<", 66, 63),
-                (1, "<", 42, 35),
+                (3, ">", 50, 40),
+                (3, ">", 70, 60),
+                (1, "<", 103, 115),
+                (1, "<", 79, 91),
+                (1, "<", 53, 63),
+                (1, "<", 25, 37),
             ],
             2: [
-                (3, ">", 37, 40),
-                (3, ">", 57, 60),
-                (1, "<", 113, 110),
-                (1, "<", 92, 89),
-                (1, "<", 66, 63),
-                (1, "<", 41, 38),
+                (1, ">", 37, 40),
+                (1, ">", 57, 60),
+                (1, ">", 110, 113),
+                (1, ">", 86, 89),
+                (3, "<", 66, 63),
+                (3, "<", 38, 35),
             ],
             3: [
                 (3, ">", 43, 40),
@@ -178,8 +178,8 @@ class UltrasonicProcessingNode(Node):
         #self.row_change_arrival_pub = self.create_publisher(
         #    Bool, '/row_change_arrival_detected', 10)
 
-        self.plant_detected_pub = self.create_publisher(
-            Bool, '/plant_detected', 10)
+        self.between_dashes_pub = self.create_publisher(
+            Bool, '/between_dashes', 10)
 
         self.row_change_start_pub = self.create_publisher(
             Bool, '/row_change_start_detected', 10)
@@ -322,7 +322,7 @@ class UltrasonicProcessingNode(Node):
         # -------------------------
         # Plant detection (ONLY in slow modes)
         # -------------------------
-        plant_detected = False
+        between_dashes = False
 
         # Select correct plant table based on row
         table = None
@@ -344,11 +344,11 @@ class UltrasonicProcessingNode(Node):
 
             if not self.plant_latched:
                 if op == ">" and distance > threshold:
-                    plant_detected = True
+                    between_dashes = True
                 elif op == "<" and distance < threshold:
-                    plant_detected = True
+                    between_dashes = True
 
-                if plant_detected:
+                if between_dashes:
                     self.plant_latched = True
                     self.get_logger().info(
                         f"PLANT DETECTED: row={self.current_row} "
@@ -357,7 +357,7 @@ class UltrasonicProcessingNode(Node):
                         f"{op} {threshold}cm"
                     )
 
-        self.plant_detected_pub.publish(Bool(data=plant_detected))
+        self.between_dashes_pub.publish(Bool(data=between_dashes))
         # -------------------------
         # BEFORE ROW CHANGE detection (NEW)
         # -------------------------
