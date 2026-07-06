@@ -38,6 +38,10 @@ class UltrasonicProcessingNode(Node):
         self.declare_parameter('init_slide_threshold', 9.0) # U4 > 9.0cm to detect the wall on the left for the initial slide left in row 1
         self.init_slide_threshold = self.get_parameter(
             'init_slide_threshold').value
+        
+        self.declare_parameter('end_course_threshold', 2.0) # U4 <= 2.0cm to detect the wall on the left for the initial slide left in row 1
+        self.end_course_threshold = self.get_parameter(
+            'end_course_threshold').value
 
         # self.declare_parameter('init_forward_threshold', 12.0) # U4 > 12.0cm to detect the wall in front of the robot for the initial forward in row 1
         # self.init_forward_threshold = self.get_parameter(
@@ -113,6 +117,9 @@ class UltrasonicProcessingNode(Node):
 
         self.before_row_follow_pub = self.create_publisher(
             Bool, '/before_row_follow_detected', 10)
+        
+        self.end_course_pub = self.create_publisher(
+            Bool, '/end_course_detected', 10)
 
         # -------------------------
         # Subscriptions
@@ -371,6 +378,14 @@ class UltrasonicProcessingNode(Node):
 
         else:
             before_row_follow_detected = False
+        
+        # =========================
+        # FINALIZE END COURSE DETECTION
+        # =========================
+
+        if self.current_motion_state == 6: # move backward
+            end_course = distances[3] <= self.end_course_threshold # U4 <= 2cm
+            self.end_course_pub.publish(Bool(data=end_course))
 
         # self.get_logger().info(
         #     f"[BEFORE ROW FOLLOW] value={before_row_follow_detected} | "
@@ -386,7 +401,7 @@ class UltrasonicProcessingNode(Node):
         #         f"(row {self.current_row})"
         #     )
             
-            
+        
 
 
         # else:
