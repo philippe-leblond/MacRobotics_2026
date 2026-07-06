@@ -60,4 +60,11 @@ def generate_launch_description():
         #     name='display_processing_node',
         #     output='screen'
         # ),
+
+        Node(
+            package='main_logic_26',
+            executable='alignment_camera',
+            name='alignment_camera_node',
+            output='screen'
+        ),
     ])

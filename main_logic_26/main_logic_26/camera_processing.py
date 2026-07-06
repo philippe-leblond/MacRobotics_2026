@@ -13,7 +13,7 @@ from ament_index_python.packages import get_package_share_directory
 CAMERA_INDEX = "/dev/v4l/by-id/usb-XZC-260109-A_Streaming_Webcam_Audio_01.00.00-video-index0"
 FRAME_RATE = 5
 
-MIN_AREA = 3000
+MIN_AREA = 2500
 HEIGHT_THRESHOLD = 125
 
 
@@ -57,6 +57,13 @@ class CameraProcessingNode(Node):
 
     def __init__(self):
         super().__init__('corn_vision')
+
+        self.debug_dir = "/home/corn/ros2_mr26/src/main_logic_26/main_logic_26/debug_pictures"
+
+        os.makedirs(self.debug_dir, exist_ok=True)
+
+        self.capture_count = 0
+
 
         # Load HSV ranges
         
@@ -109,6 +116,11 @@ class CameraProcessingNode(Node):
                 self.get_logger().warn("Failed to open camera")
                 return None
 
+            time.sleep(0.2)
+
+            for _ in range(3):
+                cap.read()
+
             ret, frame = cap.read()
 
             if not ret:
@@ -144,6 +156,8 @@ class CameraProcessingNode(Node):
     # Processing
     # -----------------------------
     def process_frame(self, image):
+        annotated = image.copy() #debug
+
         mask_frame = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
         # --- YELLOW ---
@@ -156,11 +170,39 @@ class CameraProcessingNode(Node):
         yellow_center_x = None
 
         large_yellow = [c for c in yellow_contours if cv2.contourArea(c) > MIN_AREA]
+        # if large_yellow:
+        #     contour = max(large_yellow, key=cv2.contourArea)
+        #     x, y, w, h = cv2.boundingRect(contour)
+        #     yellow_detected = True
+        #     yellow_center_x = x + w // 2
+
+        ##debug
         if large_yellow:
-            contour = max(large_yellow, key=cv2.contourArea)
+            contour = max(
+                large_yellow,
+                key=cv2.contourArea
+            )
+
             x, y, w, h = cv2.boundingRect(contour)
+
             yellow_detected = True
             yellow_center_x = x + w // 2
+
+            cv2.rectangle(
+                annotated,
+                (x, y),
+                (x + w, y + h),
+                (0, 255, 255),
+                2
+            )
+
+            cv2.circle(
+                annotated,
+                (yellow_center_x, y + h // 2),
+                5,
+                (0, 255, 255),
+                -1
+            )
 
         # --- GREEN ---
         green_mask = cv2.inRange(mask_frame, self.green_lower, self.green_upper)
@@ -172,29 +214,138 @@ class CameraProcessingNode(Node):
 
         if large_green:
             contour = max(large_green, key=cv2.contourArea)
+            # x, y, w, h = cv2.boundingRect(contour)
+            # green_center_x = x + w // 2
+
+            #debug
             x, y, w, h = cv2.boundingRect(contour)
+
             green_center_x = x + w // 2
+
+            cv2.rectangle(
+                annotated,
+                (x, y),
+                (x + w, y + h),
+                (0, 255, 0),
+                2
+            )
+
+            cv2.circle(
+                annotated,
+                (green_center_x, y + h // 2),
+                5,
+                (0, 255, 0),
+                -1
+            )
 
             if h > HEIGHT_THRESHOLD:
                 if yellow_detected:
                     if yellow_center_x < green_center_x:
                         self.publish_camera_choice(0)  # LEFT
+                        #debug
+                        cv2.putText(
+                            annotated,
+                            "LEFT",
+                            (20, 40),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            1,
+                            (0, 255, 0),
+                            2
+                        )
+                        self.save_debug_images(
+                            image,
+                            yellow_mask,
+                            green_mask,
+                            annotated,
+                            "LEFT"
+                        )
                         self.publish_led_control(2)  # LED 2 ON
                         self.publish_display([0,0,1])  # Display 2 plants
                     else:
                         self.publish_camera_choice(1)  # RIGHT
+                        #debug
+                        cv2.putText(
+                            annotated,
+                            "RIGHT",
+                            (20, 40),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            1,
+                            (0, 255, 0),
+                            2
+                        )
+
+                        self.save_debug_images(
+                            image,
+                            yellow_mask,
+                            green_mask,
+                            annotated,
+                            "RIGHT"
+                        )
                         self.publish_led_control(2)  # LED 2 ON
                         self.publish_display([0,0,1])  # Display 2 plants
                 else:
                     self.publish_camera_choice(2)
+                    #debug
+                    cv2.putText(
+                        annotated,
+                        "HEALTHY",
+                        (20, 40),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1,
+                        (255, 0, 0),
+                        2
+                    )
+
+                    self.save_debug_images(
+                        image,
+                        yellow_mask,
+                        green_mask,
+                        annotated,
+                        "HEALTHY"
+                    )
                     self.publish_led_control(1)  # LED 1 ON
                     self.publish_display([0,1,0])  # Display 1 plant
             else:
                 self.publish_camera_choice(2)
+                cv2.putText(
+                    annotated,
+                    "SMALL_PLANT",
+                    (20, 40),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1,
+                    (255, 255, 0),
+                    2
+                )
+
+                self.save_debug_images(
+                    image,
+                    yellow_mask,
+                    green_mask,
+                    annotated,
+                    "SMALL_PLANT"
+                )
                 self.publish_led_control(0)  # LED 0 ON
                 self.publish_display([1,0,0])  # Display 0 plants
         else:
             self.publish_camera_choice(3)  # No plants detected
+            #debug
+            cv2.putText(
+                annotated,
+                "NO_PLANT",
+                (20, 40),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (0, 0, 255),
+                2
+            )
+
+            self.save_debug_images(
+                image,
+                yellow_mask,
+                green_mask,
+                annotated,
+                "NO_PLANT"
+            )
             self.publish_led_control(-1)  # All LEDs OFF
             self.publish_display([0,0,0])  # Display no plants
 
@@ -214,6 +365,48 @@ class CameraProcessingNode(Node):
             return
 
         self.process_frame(image)
+
+    #debug picutres:
+    def save_debug_images(
+        self,
+        original,
+        yellow_mask,
+        green_mask,
+        annotated,
+        result_text
+    ):
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+
+        prefix = os.path.join(
+            self.debug_dir,
+            f"{timestamp}_{self.capture_count:04d}"
+        )
+
+        cv2.imwrite(
+            f"{prefix}_original.jpg",
+            original
+        )
+
+        cv2.imwrite(
+            f"{prefix}_yellow_mask.jpg",
+            yellow_mask
+        )
+
+        cv2.imwrite(
+            f"{prefix}_green_mask.jpg",
+            green_mask
+        )
+
+        cv2.imwrite(
+            f"{prefix}_{result_text}.jpg",
+            annotated
+        )
+
+        self.capture_count += 1
+
+        self.get_logger().info(
+            f"Saved debug images: {prefix}"
+        )
 
     # -----------------------------
     # Cleanup

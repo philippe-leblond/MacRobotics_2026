@@ -52,12 +52,12 @@ class UltrasonicProcessingNode(Node):
 
             # Sensor index, operator, between_dashes, pid_target
             1: [
-                (3, ">", 50, 40),
-                (3, ">", 70, 60),
-                (1, "<", 103, 115),
-                (1, "<", 79, 91),
-                (1, "<", 53, 63),
-                (1, "<", 25, 37),
+                (3, ">", 50, 45),
+                (3, ">", 70, 65),
+                (1, "<", 103, 110),
+                (1, "<", 79, 86),
+                (1, "<", 53, 58),
+                (1, "<", 25, 30),
             ],
             2: [
                 (1, ">", 37, 40),
@@ -147,6 +147,8 @@ class UltrasonicProcessingNode(Node):
 
         self.current_plant = 0
         self.plant_latched = False
+
+        self.between_dashes = False
 
         # -------------------------
         # State input
@@ -282,6 +284,7 @@ class UltrasonicProcessingNode(Node):
                 f"current_plant={self.current_plant} "
                 f"motion={self.current_motion_state} "
                 f"latched={self.plant_latched}"
+                f"between_dashes={self.between_dashes}"
             )
             self._last_plant_log_time = now
 
@@ -487,10 +490,10 @@ class UltrasonicProcessingNode(Node):
         else:
             before_row_follow_detected = False
 
-        self.get_logger().info(
-            f"[BEFORE ROW FOLLOW] value={before_row_follow_detected} | "
-            f"motion={self.current_motion_state} | row={self.current_row}"
-        )   
+        # self.get_logger().info(
+        #     f"[BEFORE ROW FOLLOW] value={before_row_follow_detected} | "
+        #     f"motion={self.current_motion_state} | row={self.current_row}"
+        # )   
       
         self.before_row_follow_pub.publish(Bool(data=before_row_follow_detected))
         self.row_change_start_pub.publish(Bool(data=False))

@@ -52,7 +52,7 @@ class StateMachineNode(Node):
         self.row_index_pub = self.create_publisher(Int32, '/row_index', 10)
         self.plant_index_pub = self.create_publisher(Int32, '/plant_index', 10)
         self.camera_request_pub = self.create_publisher(Bool, '/camera_request', 10) # NEED TO CREATE IN THE FUTUR CAMERA NODE
-
+        self.positioning_camera_pub = self.create_publisher(Bool, '/plant_detected_camera', 10) # NEED TO CREATE IN THE FUTUR CAMERA NODE
 
         # ---------- Subscriptions ----------
         self.create_subscription(Bool, '/row_end', self.row_end_cb, 10)
@@ -69,7 +69,9 @@ class StateMachineNode(Node):
         self.create_subscription(Bool, '/before_row_follow_detected', self.before_row_follow_cb, 10)
         # self.create_subscription(Bool, '/row_change_arrival_detected', self.row_change_arrival_cb, 10) 
         self.create_subscription(Int32MultiArray, '/line_falling_edges', self.falling_edges_cb, 10)
-        self.create_subscription(Bool, '/plant_position_reached', self.plant_position_cb, 10)
+        # self.create_subscription(Bool, '/plant_position_reached', self.plant_position_cb, 10)
+        self.create_subscription(Bool, '/plant_position_reached_camera', self.plant_position_camera_cb, 10)
+
 
 
         # ---------- Internal state ----------
@@ -78,7 +80,7 @@ class StateMachineNode(Node):
         self.plant_count = 0
         self._last_log = 0.0 # loggin purpose only
         self._last_plant_log_time = 0.0 # logging purpose only
-        self.plant_aligned = False
+        self.plant_aligned_camera = False
 
         self.row_end = False
         self.forward_pair_black = False
@@ -145,8 +147,11 @@ class StateMachineNode(Node):
     def falling_edges_cb(self, msg):
         self.falling_edges = msg.data
 
-    def plant_position_cb(self, msg):
-        self.plant_aligned = msg.data
+    # def plant_position_cb(self, msg):
+    #     self.plant_aligned = msg.data
+    
+    def plant_position_camera_cb(self, msg):
+        self.plant_aligned_camera = msg.data
 
     def force_state_cb(self, msg):
         try:
@@ -255,7 +260,7 @@ class StateMachineNode(Node):
 
                     self.camera_choice = -1
                     self.camera_request_sent = False
-                    self.plant_aligned = False
+                    self.plant_aligned_camera = False
 
                     self.get_logger().info("Plant detected -> requesting camera classification")
 
@@ -273,7 +278,7 @@ class StateMachineNode(Node):
 
                     self.camera_choice = -1
                     self.camera_request_sent = False
-                    self.plant_aligned = False
+                    self.plant_aligned_camera = False
 
                     self.get_logger().info("Plant detected -> requesting camera classification")
 
@@ -305,7 +310,7 @@ class StateMachineNode(Node):
 
         #         self.camera_choice = -1
         #         self.camera_request_sent = False
-        #         self.plant_aligned = False
+        #         self.plant_aligned_camera = False
 
         #         self.get_logger().info(
         #             "Plant detected -> requesting camera classification"
@@ -325,12 +330,12 @@ class StateMachineNode(Node):
 
             if self.camera_choice == 0:
                 self.get_logger().info("Yellow plant on LEFT -> positioning")
-                self.plant_aligned = False
+                self.plant_aligned_camera = False
                 self.state = RobotState.PLANT_POSITIONING
 
             elif self.camera_choice == 1:
                 self.get_logger().info("Yellow plant on RIGHT -> positioning")
-                self.plant_aligned = False
+                self.plant_aligned_camera = False
                 self.state = RobotState.PLANT_POSITIONING
 
             elif self.camera_choice == 3:
@@ -353,10 +358,12 @@ class StateMachineNode(Node):
 
             self.motion_mode_pub.publish(Int32(data=15))
             self.line_mode_pub.publish(Int32(data=6))
+            self.positioning_camera_pub.publish(Bool(data=True))
 
-            if self.plant_aligned:
+            if self.plant_aligned_camera:
 
                 self.motion_mode_pub.publish(Int32(data=0))
+                self.positioning_camera_pub.publish(Bool(data=False))
                 self.get_logger().info("Plant aligned")
                 self.state = RobotState.PLANT_ACT
 
@@ -457,21 +464,30 @@ class StateMachineNode(Node):
         elif self.state == RobotState.ROW_CHANGE:
 
             # From forward row → go RIGHT
-            self.motion_mode_pub.publish(Int32(data=4)) # RIGHT ROW CHANGE
-            self.line_mode_pub.publish(Int32(data=4)) # SLIDE RIGHT
+            if self.row % 2 == 1: # ODD
+                self.motion_mode_pub.publish(Int32(data=4)) # RIGHT ROW CHANGE
+                self.line_mode_pub.publish(Int32(data=4)) # SLIDE RIGHT
 
-            if self.before_row_follow_detected:  # reuse a valid sensor
-                self.get_logger().info("Row change complete")
-                self.state = RobotState.BEFORE_ROW_FOLLOW
+                if self.before_row_follow_detected:  # reuse a valid sensor
+                    self.get_logger().info("Row change complete odd")
+                    self.state = RobotState.BEFORE_ROW_FOLLOW
+            
+            elif self.row % 2 == 0: # EVEN
+                self.motion_mode_pub.publish(Int32(data=14)) # LEFT ROW CHANGE
+                self.line_mode_pub.publish(Int32(data=4)) # SLIDE LEFT
+
+                if self.before_row_follow_detected:  # reuse a valid sensor
+                    self.get_logger().info("Row change complete even")
+                    self.state = RobotState.BEFORE_ROW_FOLLOW
         
         # ==================================================
         # BEFORE ROW CHANGE 
         # ==================================================
         elif self.state == RobotState.BEFORE_ROW_FOLLOW:
-            self.line_mode_pub.publish(Int32(data=6))  # NO_LINE_SENSORS
-            self.motion_mode_pub.publish(Int32(data=14))     # MOVE RIGHT 
 
             if self.row % 2 == 1: # Odd row (changing at before row change)
+                self.line_mode_pub.publish(Int32(data=6))  # NO_LINE_SENSORS
+                self.motion_mode_pub.publish(Int32(data=14))     # MOVE RIGHT 
                 if self.falling_edges[2] == 1 and not self.row_change_latched:  # Assuming L3 is the sensor
                     self.falling_edges = [0,0,0,0] # reset the falling edge
                     self.row += 1
@@ -480,6 +496,8 @@ class StateMachineNode(Node):
                     self.state = RobotState.ROW_FOLLOW
             
             elif self.row % 2 == 0: # Even row (changing at before row change)
+                self.line_mode_pub.publish(Int32(data=6))  # NO_LINE_SENSORS
+                self.motion_mode_pub.publish(Int32(data=17))     # MOVE RIGHT 
                 if self.falling_edges[1] == 1 and not self.row_change_latched:  # Assuming L2 is the sensor
                     self.falling_edges = [0,0,0,0] # reset the falling edge
                     self.row += 1
