@@ -16,12 +16,12 @@ MIN_AREA = 2500
 KP = 0.002
 KD = 0.001
 
-PIXEL_DEADBAND = 25 # 20 IS OK BUT STILL A LOT OF CORRECTIONS
+PIXEL_DEADBAND = 30 # 20 IS OK BUT STILL A LOT OF CORRECTIONS
 MAX_OUTPUT = 0.35
 REQUIRED_CENTERED_FRAMES = 3
 
-OFFSET_RATIO_YELLOW_RIGHT = 0.2
-OFFSET_RATIO_YELLOW_LEFT = -0.3
+OFFSET_RATIO_YELLOW_RIGHT = -0.05
+OFFSET_RATIO_YELLOW_LEFT = -0.27
 
 
 class PlantAlignmentNode(Node):
@@ -222,9 +222,15 @@ class PlantAlignmentNode(Node):
 
         if not yellow:
             self.get_logger().warn("NO YELLOW CONTOUR")
+            self.positioning_pub.publish(
+                Bool(data=True)
+            )
 
         if not green:
             self.get_logger().warn("NO GREEN CONTOUR")
+            self.positioning_pub.publish(
+                Bool(data=True)
+            )
 
         self.get_logger().warn(
             f"yellow_contours={len(yellow)} "

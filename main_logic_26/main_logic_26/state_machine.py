@@ -63,7 +63,6 @@ class StateMachineNode(Node):
         self.create_subscription(Bool, '/init_slide_wall_2_detected', self.init_slide_2_cb, 10)
         # self.create_subscription(Bool, '/init_slide_wall_3_detected', self.init_slide_3_cb, 10)
         self.create_subscription(Bool, '/init_forward_wall_1_detected', self.init_forward_1_cb, 10)
-        self.create_subscription(Int32,'/force_state', self.force_state_cb, 10)
         self.create_subscription(Int32, '/camera_choice', self.camera_choice_cb, 10) # NEED TO CREATE IN THE FUTUR CAMERA NODE
         self.create_subscription(Bool, '/before_row_change_detected', self.before_row_change_cb, 10)
         self.create_subscription(Bool, '/before_row_follow_detected', self.before_row_follow_cb, 10)
@@ -85,7 +84,7 @@ class StateMachineNode(Node):
         self.row_end = False
         self.forward_pair_black = False
         self.backward_pair_black = False
-        self.between_dashes = False
+        self.between_dashes = True # I want it True for the first dash
         self.init_slide_wall_1_detected = False
         self.init_slide_wall_2_detected = False
         self.init_slide_wall_3_detected = False
@@ -153,27 +152,6 @@ class StateMachineNode(Node):
     def plant_position_camera_cb(self, msg):
         self.plant_aligned_camera = msg.data
 
-    def force_state_cb(self, msg):
-        try:
-            forced_state = RobotState(msg.data)
-            self.get_logger().warn(
-                f"FORCING STATE → {forced_state.name}"
-            )
-            self.state = forced_state
-
-            # Reset transient state so the newly forced state starts cleanly.
-            #self.forward_pair_latched = False
-            #self.backward_pair_latched = False
-            self.on_dashed_line = False
-            self.between_dashes = False
-            self.wait_start = None
-            self.camera_choice = -1
-            self.camera_request_sent = False
-
-        except ValueError:
-            self.get_logger().error(
-                f"Invalid forced state value: {msg.data}"
-            )
     # ---------- Main logic ----------
     def step(self):
         if not self.forward_pair_black and not self.backward_pair_black:
@@ -198,7 +176,11 @@ class StateMachineNode(Node):
             self.get_logger().info(
                 f"[STATE_MACHINE] row={self.row} "
                 f"plant_count={self.plant_count} "
-                f"state={self.state.name}"
+                f"state={self.state.name} "
+                f"between dashes={self.between_dashes} "
+                f"on dashed line={self.on_dashed_line} "
+                f"forward pair= {self.forward_pair_black} "
+                f"backward pair= {self.backward_pair_black}"
             )
             self._last_plant_log_time = now
 
@@ -249,14 +231,21 @@ class StateMachineNode(Node):
             self.row_index_pub.publish(Int32(data=self.row))
             self.row_change_latched = False #reset row change latch at the beginning of each row follow to avoid issues with the row change detection in the ultrasonic node and the row change process in general
             if self.row % 2 == 1:
-                self.line_mode_pub.publish(Int32(data=0))  # ROW_FOLLOW_ODD
-                self.motion_mode_pub.publish(Int32(data=1))     # LINE FOLLOW FORWARD
                 if self.between_dashes: # change the plant detect to between two dashed detection
                     self.forward_pair_latched = True
+                    self.line_mode_pub.publish(Int32(data=0))  # ROW_FOLLOW_ODD
+                    self.motion_mode_pub.publish(Int32(data=1))     # LINE FOLLOW FORWARD
+                
+                elif not self.between_dashes:
+                    self.line_mode_pub.publish(Int32(data=6))  # NO LINE SENSORS
+                    self.motion_mode_pub.publish(Int32(data=5))     # FORWARD
+
                 if self.forward_pair_black and self.forward_pair_latched and not self.on_dashed_line:
                     self.on_dashed_line = True
                     self.get_logger().info("Forward dashed line detected")
                     self.motion_mode_pub.publish(Int32(data=0))
+                    self.backward_pair_latched = False
+
 
                     self.camera_choice = -1
                     self.camera_request_sent = False
@@ -267,14 +256,21 @@ class StateMachineNode(Node):
                     self.state = RobotState.PLANT_DETECTED
                     # self.state = RobotState.ROW_SLOW
             else:
-                self.line_mode_pub.publish(Int32(data=2))  # ROW_FOLLOW_EVEN
-                self.motion_mode_pub.publish(Int32(data=2))     # LINE FOLLOW BACKWARD
+
                 if self.between_dashes: # change the plant detect to between two dashed detection
                     self.backward_pair_latched = True
+                    self.line_mode_pub.publish(Int32(data=2))  # ROW_FOLLOW_EVEN
+                    self.motion_mode_pub.publish(Int32(data=2))     # LINE FOLLOW BACKWARD    
+
+                elif not self.between_dashes:
+                    self.line_mode_pub.publish(Int32(data=6))  # NO LINE SENSORS
+                    self.motion_mode_pub.publish(Int32(data=6))     # BACKWARD
+
                 if self.backward_pair_black and self.backward_pair_latched and not self.on_dashed_line:
                     self.on_dashed_line = True
                     self.get_logger().info("Backward dashed line detected")
                     self.motion_mode_pub.publish(Int32(data=0))
+                    self.backward_pair_latched = False
 
                     self.camera_choice = -1
                     self.camera_request_sent = False
@@ -323,6 +319,8 @@ class StateMachineNode(Node):
         # ================================================== 
         elif self.state == RobotState.PLANT_DETECTED:
 
+            self.between_dashes = False
+
             if not self.camera_request_sent:
                 self.camera_request_pub.publish(Bool(data=True))
                 self.camera_request_sent = True
@@ -345,7 +343,7 @@ class StateMachineNode(Node):
                 self.state = RobotState.WAIT
 
             elif self.camera_choice == 2:
-                self.get_logger().info("Healthy plant -> skipping")
+                self.get_logger().info("Healthy or no plant -> skipping")
                 self.camera_choice = -1
                 self.camera_request_sent = False
                 self.wait_start = time.time()
@@ -466,15 +464,15 @@ class StateMachineNode(Node):
             # From forward row → go RIGHT
             if self.row % 2 == 1: # ODD
                 self.motion_mode_pub.publish(Int32(data=4)) # RIGHT ROW CHANGE
-                self.line_mode_pub.publish(Int32(data=4)) # SLIDE RIGHT
+                self.line_mode_pub.publish(Int32(data=5)) # SLIDE RIGHT
 
                 if self.before_row_follow_detected:  # reuse a valid sensor
                     self.get_logger().info("Row change complete odd")
                     self.state = RobotState.BEFORE_ROW_FOLLOW
             
             elif self.row % 2 == 0: # EVEN
-                self.motion_mode_pub.publish(Int32(data=14)) # LEFT ROW CHANGE
-                self.line_mode_pub.publish(Int32(data=4)) # SLIDE LEFT
+                self.motion_mode_pub.publish(Int32(data=18)) # RIGHT ROW CHANGE
+                self.line_mode_pub.publish(Int32(data=5)) # SLIDE RIGHT
 
                 if self.before_row_follow_detected:  # reuse a valid sensor
                     self.get_logger().info("Row change complete even")
@@ -510,7 +508,7 @@ class StateMachineNode(Node):
         # FINISH
         # ==================================================
         elif self.state == RobotState.FINISH:
-            self.motion_mode_pub.publish(Int32(data=5))  # STOP
+            self.motion_mode_pub.publish(Int32(data=5))  # FORWARD
             self.line_mode_pub.publish(Int32(data=6))    # NO LINE DETECTION
             if self.end_course_detected: #define this variable in the ultrasonic node with the specific threshold for the end of the course
                 self.motion_mode_pub.publish(Int32(data=0))  # STOP

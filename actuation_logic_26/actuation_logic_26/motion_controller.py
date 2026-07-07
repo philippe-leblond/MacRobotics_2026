@@ -49,6 +49,7 @@ class MotionControllerNode(Node):
         self.line_direction = 0 # coming from the line processing node, -1 for left, 0 for straight, +1 for right
         self.side_wall_detected = False # just for debuggin purposes 
         self.plant_pid_output = 0.0 # coming from the ultrasonic processing node, this is the output of the PID controller that tries to keep the robot at a certain distance from the plant
+        self.plant_pid_output_camera = 0.0 # coming from the allignment camera node, this is the output of the PID controller that tries to keep the robot centered on the plant
 
         self.last_command = ""
 
@@ -61,7 +62,8 @@ class MotionControllerNode(Node):
         self.create_subscription(
             Int32, '/line_direction', self.line_dir_cb, 10)
 
-        self.create_subscription(Float32, '/plant_pid_output', self.plant_pid_cb, 10)
+        #self.create_subscription(Float32, '/plant_pid_output', self.plant_pid_cb, 10)
+        self.create_subscription(Float32, '/plant_pid_output_camera', self.plant_pid_camera_cb, 10)
         # -------------------------
         # Control loop
         # -------------------------
@@ -110,6 +112,10 @@ class MotionControllerNode(Node):
     def plant_pid_cb(self, msg):
         self.plant_pid_output = msg.data
         self.get_logger().info(f"Plant PID output updated: {self.plant_pid_output}")
+
+    def plant_pid_camera_cb(self, msg):
+        self.plant_pid_output_camera = msg.data
+        self.get_logger().info(f"Plant PID output camera updated: {self.plant_pid_output_camera}")
 
     # =========================
     # Main control logic
@@ -201,18 +207,23 @@ class MotionControllerNode(Node):
         # ---- PID CONTROL ----
         elif self.motion_mode == 15:
 
-            speed = 100 + int(abs(self.plant_pid_output) * 255) # Convert to PWM
+            # self.plant_pid_output_camera = 0.0
+
+            speed = 100 + int(abs(self.plant_pid_output_camera) * 255) # Convert to PWM
 
             speed = int(max(100, min(180, speed))) # the 100 is added because the motors don't move before PWM 100 # Clamp between 100 and 180
 
-            if self.plant_pid_output > 0:
+            if self.plant_pid_output_camera < 0:
                 cmd = f"<FORWARD:{speed}>"
+                self.get_logger().info(f"PID Control: Moving Forward with speed {speed} due to plant_pid_output_camera {self.plant_pid_output_camera}")
 
-            elif self.plant_pid_output < 0:
+            elif self.plant_pid_output_camera > 0:
                 cmd = f"<BACKWARD:{speed}>"
+                self.get_logger().info(f"PID Control: Moving Backward with speed {speed} due to plant_pid_output_camera {self.plant_pid_output_camera}")
 
             else:
                 cmd = "<STOP>"
+                self.get_logger().info(f"PID Control: Stopping due to plant_pid_output_camera {self.plant_pid_output_camera}")
 
         # ---- MOVE RIGHT EVEN ROW ----
         elif self.motion_mode == 16:

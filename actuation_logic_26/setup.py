@@ -32,6 +32,7 @@ setup(
             'ultrasonic_processing = actuation_logic_26.ultrasonic_processing:main',
             'motion_controller = actuation_logic_26.motion_controller:main',
             'state_machine = actuation_logic_26.state_machine:main',
+            'alignment_camera = actuation_logic_26.alignment_camera:main'
         ],
     },
 )

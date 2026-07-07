@@ -51,25 +51,27 @@ class UltrasonicProcessingNode(Node):
 
             # sensor, detection_op, detect_threshold, pid_target
 
-            (3, ">", 37, 40),
-            (3, ">", 57, 60),
-            (1, "<", 103, 100),
-            (1, "<", 92, 89),
-            (1, "<", 66, 63),
-            (1, "<", 42, 35),
+            (3, ">", 42), # 42 0
+            (3, ">", 65), # 65 1
+            (1, "<", 114), # 114 2 
+            (1, "<", 87), # 87 3
+            (1, "<", 61), # 61 4 
+            (1, "<", 36), # 36 5
         ]
 
         self.row_even_plants = [
-            (3, ">", 37, 40),
-            (3, ">", 57, 60),
-            (1, "<", 113, 110),
-            (1, "<", 92, 89),
-            (1, "<", 66, 63),
-            (1, "<", 41, 38),
+            (1, ">", 39), # 39
+            (1, ">", 61), # 61
+            (1, ">", 87), # 87
+            (1, ">", 113), # 113
+            (3, "<", 64), # 64
+            (3, "<", 38), # 38
         ]
 
         self.current_plant = 0
         self.plant_latched = False
+
+        self.between_dashes = True
 
         # -------------------------
         # State input
@@ -104,8 +106,8 @@ class UltrasonicProcessingNode(Node):
         #self.row_change_arrival_pub = self.create_publisher(
         #    Bool, '/row_change_arrival_detected', 10)
 
-        self.plant_detected_pub = self.create_publisher(
-            Bool, '/plant_detected', 10)
+        self.between_dashes_pub = self.create_publisher(
+            Bool, '/between_dashes', 10)
 
         self.filtered_pub = self.create_publisher(
             Float32MultiArray,
@@ -167,6 +169,7 @@ class UltrasonicProcessingNode(Node):
         if msg.data != self.current_row:
             self.get_logger().info("Row changed → resetting plant latch")
             self.plant_latched = False
+            self.between_dashes = False
             self.current_plant = 0   # optional safety reset
 
         self.current_row = msg.data
@@ -267,27 +270,26 @@ class UltrasonicProcessingNode(Node):
         # -------------------------
         # Plant detection (ONLY in slow modes)
         # -------------------------
-        plant_detected = False
-
         # Select correct plant table based on row + motion direction
-        if self.current_row % 2 and self.current_motion_state == 11: # maybe need to remove the added condition of the current motion state when the camera vision will be implemented
+        if self.current_row % 2 == 1: 
             table = self.row_odd_plants
-        elif self.current_row % 2 == 0 and self.current_motion_state == 11:  # maybe need to remove the added condition of the current motion state when the camera vision will be implemented
+        elif self.current_row % 2 == 0:  
             table = self.row_even_plants
         else:
             table = None  # invalid combination → do nothing
 
         if table is not None and self.current_plant < len(table):
-            sensor, op, threshold, pid_target = table[self.current_plant]
+            index = max(0, self.current_plant - 1)
+            sensor, op, threshold = table[index]
             distance = distances[sensor]
 
-            if not self.plant_latched:
+            if not self.plant_latched and not self.between_dashes:
                 if op == ">" and distance > threshold:
-                    plant_detected = True
+                    self.between_dashes = True
                 elif op == "<" and distance < threshold:
-                    plant_detected = True
+                    self.between_dashes = True
 
-                if plant_detected:
+                if self.between_dashes:
                     self.plant_latched = True
                     self.get_logger().info(
                         f"PLANT DETECTED: row={self.current_row} "
@@ -297,84 +299,8 @@ class UltrasonicProcessingNode(Node):
                         f"{op} {threshold}cm"
                     )
 
-        self.plant_detected_pub.publish(Bool(data=plant_detected))
+        self.between_dashes_pub.publish(Bool(data=self.between_dashes))
 
-        # -------------------------
-        # PID plant allignement (After Plant Detection)
-        # -------------------------
-
-        if self.current_motion_state == 15:  # PID_CONTROL mode
-
-            config = self.get_current_plant_config()
-
-            if config is not None:
-
-                sensor, op, threshold, pid_target = config
-
-                distance = distances[sensor]
-
-                pid_output = self.compute_p_output(
-                    distance,
-                    pid_target,
-                    op
-                )
-
-                error = self.compute_plant_error(
-                    distance,
-                    pid_target,
-                    op
-                )
-
-                position_reached = abs(error) < self.pid_deadband
-
-                self.plant_position_reached_pub.publish(
-                    Bool(data=position_reached)
-                )
-
-                self.plant_pid_pub.publish(
-                    Float32(data=pid_output)
-                )
-    # =========================
-    # Helpers
-    # =========================
-    def get_current_plant_config(self):
-
-        if self.current_row % 2:
-            table = self.row_odd_plants
-        else:
-            table = self.row_even_plants
-
-        if self.current_plant >= len(table):
-            return None
-
-        return table[self.current_plant]
-    
-    def compute_p_output(self, distance, target, op):
-
-        error = self.compute_plant_error(
-            distance,
-            target,
-            op
-        )
-
-        if abs(error) < self.pid_deadband:
-            return 0.0
-
-        return max(
-            -0.25,
-            min(0.25, self.kp * error)
-        )
-
-
-    def compute_plant_error(self, distance, target, op):
-
-        if op == ">":
-            return target - distance
-
-        elif op == "<":
-            return distance - target
-
-        return 0.0
 
 def main():
     rclpy.init()

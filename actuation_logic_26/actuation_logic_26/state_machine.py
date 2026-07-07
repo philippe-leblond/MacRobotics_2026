@@ -46,14 +46,15 @@ class StateMachineNode(Node):
         self.line_mode_pub = self.create_publisher(Int32, '/line_mode', 10)
         self.row_index_pub = self.create_publisher(Int32, '/row_index', 10)
         self.plant_index_pub = self.create_publisher(Int32, '/plant_index', 10)
-        
+        self.positioning_camera_pub = self.create_publisher(Bool, '/plant_detected_camera', 10) # NEED TO CREATE IN THE FUTUR CAMERA NODE
+
 
         # ---------- Subscriptions ----------
         self.create_subscription(Bool, '/row_end_detected', self.row_end_cb, 10)
         #self.create_subscription(Bool, '/row_change_arrival_detected', self.row_change_arrival_cb, 10)
         self.create_subscription(Bool, '/forward_pair_black', self.forward_pair_cb, 10)
         self.create_subscription(Bool, '/backward_pair_black', self.backward_pair_cb, 10)
-        self.create_subscription(Bool, '/plant_detected', self.plant_cb, 10)
+        self.create_subscription(Bool, '/between_dashes', self.between_dashes_cb, 10)
         self.create_subscription(Bool, '/init_slide_wall_1_detected', self.init_slide_1_cb, 10)
         self.create_subscription(Bool, '/init_slide_wall_2_detected', self.init_slide_2_cb, 10)
         #self.create_subscription(Bool, '/init_slide_wall_3_detected', self.init_slide_3_cb, 10)
@@ -62,7 +63,8 @@ class StateMachineNode(Node):
         self.create_subscription(Int32,'/force_state', self.force_state_cb, 10)
         self.create_subscription(Int32MultiArray, '/line_falling_edges', self.falling_edges_cb, 10)
         #self.create_subscription(Float32, '/plant_pid_output', self.plant_pid_cb, 10)
-        self.create_subscription(Bool,'/plant_position_reached', self.plant_position_cb, 10)
+        # self.create_subscription(Bool,'/plant_position_reached', self.plant_position_cb, 10)
+        self.create_subscription(Bool, '/plant_position_reached_camera', self.plant_position_camera_cb, 10)
 
         # ---------- Internal state ----------
         self.state = RobotState.INIT_SLIDE_LEFT
@@ -71,14 +73,14 @@ class StateMachineNode(Node):
         self._last_log = 0.0 # loggin purpose only
         self._last_plant_log_time = 0.0 # logging purpose only
         #self.plant_pid_output = 0.0
-        self.plant_aligned = False
+        self.plant_aligned_camera = False
 
 
         self.row_end = False
         #self.row_change_arrival = False
         self.forward_pair_black = False
         self.backward_pair_black = False
-        self.plant_detected = False
+        self.between_dashes = True # I want it True for the first dash
         self.init_slide_wall_1_detected = False
         self.init_slide_wall_2_detected = False
         #self.init_slide_wall_3_detected = False
@@ -86,6 +88,7 @@ class StateMachineNode(Node):
         #self.init_forward_wall_2_detected = False
         self.on_dashed_line = False
         self.falling_edges = [0,0,0,0]
+
 
         
         self.wait_start = None
@@ -107,8 +110,8 @@ class StateMachineNode(Node):
     def backward_pair_cb(self, msg):
         self.backward_pair_black = msg.data
     
-    def plant_cb(self, msg):
-        self.plant_detected = msg.data
+    # def plant_cb(self, msg):
+    #     self.plant_detected = msg.data
 
     def falling_edges_cb(self, msg):
         self.falling_edges = msg.data
@@ -133,6 +136,12 @@ class StateMachineNode(Node):
     
     def plant_position_cb(self, msg):
         self.plant_aligned = msg.data
+
+    def plant_position_camera_cb(self, msg):
+        self.plant_aligned_camera = msg.data
+    
+    def between_dashes_cb (self, msg):
+        self.between_dashes  = msg.data
     
     def force_state_cb(self, msg):
         try:
@@ -234,37 +243,57 @@ class StateMachineNode(Node):
             self.forward_pair_latched = False # reset the latched flags for dashed line detection after turning and initialization
             self.backward_pair_latched = False # reset the latched flags for dashed line detection after turning and initialization
             self.row_index_pub.publish(Int32(data=self.row))
-            self.motion_mode_pub.publish(Int32(data=1))  # line follow forward
-            self.line_mode_pub.publish(Int32(data=0))    # ROW_FOLLOW_ODD
+            if self.between_dashes: # change the plant detect to between two dashed detection
+                self.forward_pair_latched = True
+                self.line_mode_pub.publish(Int32(data=0))  # ROW_FOLLOW_ODD
+                self.motion_mode_pub.publish(Int32(data=1))     # LINE FOLLOW FORWARD
+            
+            elif not self.between_dashes:
+                self.line_mode_pub.publish(Int32(data=6))  # NO LINE SENSORS
+                self.motion_mode_pub.publish(Int32(data=5))     # FORWARD
 
-            if self.forward_pair_black and not self.on_dashed_line:
+            if self.forward_pair_black and self.forward_pair_latched and not self.on_dashed_line:
                 self.on_dashed_line = True
-                self.get_logger().info("Forward dashed line detected, slowing down")
-                self.state = RobotState.ROW_FOLLOW_SLOW
+                self.get_logger().info("Forward dashed line detected")
+                self.motion_mode_pub.publish(Int32(data=0))
+                self.backward_pair_latched = False
 
 
-        # ==================================================
-        # ROW FORWARD SLOW
-        # ================================================== 
-        # need to test the threshold between the moment where the robot waits 1 second for a plant goes back to the row_odd_run because now its going directly to thee row odd slow since it's directly [1,1,0,0]
-        elif self.state == RobotState.ROW_FOLLOW_SLOW:
-            self.motion_mode_pub.publish(Int32(data=11))  # slow forward
-            self.line_mode_pub.publish(Int32(data=6))     # NO LINE SENSORS
-            # ultrasonic node stops us using plant thresholds
-            if self.plant_detected: # MAKE SURE THERE IS STILL FORWARD AND BACKWARD DETECTION            
-                self.plant_aligned = False
-                self.get_logger().info("Plant found, entering PID positioning")
+                self.plant_aligned_camera = False
+
+                self.get_logger().info("Plant detected -> requesting camera classification")
+
                 self.state = RobotState.PLANT_POSITIONING
+
+
+        # # ==================================================
+        # # ROW FORWARD SLOW
+        # # ================================================== 
+        # # need to test the threshold between the moment where the robot waits 1 second for a plant goes back to the row_odd_run because now its going directly to thee row odd slow since it's directly [1,1,0,0]
+        # elif self.state == RobotState.ROW_FOLLOW_SLOW:
+        #     self.motion_mode_pub.publish(Int32(data=11))  # slow forward
+        #     self.line_mode_pub.publish(Int32(data=6))     # NO LINE SENSORS
+        #     # ultrasonic node stops us using plant thresholds
+        #     if self.plant_detected: # MAKE SURE THERE IS STILL FORWARD AND BACKWARD DETECTION            
+        #         self.plant_aligned = False
+        #         self.get_logger().info("Plant found, entering PID positioning")
+        #         self.state = RobotState.PLANT_POSITIONING
         
         # ==================================================
         # PLANT POSITIONING
         # ================================================== 
 
         elif self.state == RobotState.PLANT_POSITIONING:
+            self.between_dashes = False
+
             self.motion_mode_pub.publish(Int32(data=15))  # PID CONTROL
             self.line_mode_pub.publish(Int32(data=6))    # NO LINE SENSORS
-            if self.plant_aligned:
+            self.positioning_camera_pub.publish(Bool(data=True))
+
+            if self.plant_aligned_camera:
                 self.motion_mode_pub.publish(Int32(data=0))
+                self.positioning_camera_pub.publish(Bool(data=False))
+                self.get_logger().info("Plant aligned")
                 self.state = RobotState.PLANT_ACT
 
 
@@ -273,7 +302,7 @@ class StateMachineNode(Node):
         # ================================================== 
         elif self.state == RobotState.PLANT_ACT:
                 self.motion_mode_pub.publish(Int32(data=0))
-                self.serServo.write(b"<servo1>")
+                self.serServo.write(b"<servo2>")
                 self.get_logger().info("Plant knocked down, waiting 1 second")
                 self.wait_start = time.time()
                 self.state = RobotState.WAIT
@@ -310,7 +339,7 @@ class StateMachineNode(Node):
             self.motion_mode_pub.publish(Int32(data=10))  # turn 180 forward #MAYBE 9
             self.line_mode_pub.publish(Int32(data=6))     # NO LINE SENSORS
 
-            if self.falling_edges[1] == 1:  # Assuming L2 is the first sensor: actually worked once WTF
+            if self.falling_edges[3] == 1:  # Assuming L4 is the first sensor: actually worked once WTF
                 self.falling_edges = [0,0,0,0]  # reset the falling edge
                 self.state = RobotState.ROW_FOLLOW
 

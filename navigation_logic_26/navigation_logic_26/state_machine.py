@@ -262,8 +262,13 @@ class StateMachineNode(Node):
                         f"Reached next row {self.current_row} after row change"
                     )
 
+                    self.get_logger().info(
+                        f"current_row={self.current_row} ({type(self.current_row)}) "
+                        f"max_rows={self.max_rows} ({type(self.max_rows)})"
+                    )
                     # Decide next state
-                    if self.current_row > self.max_rows:
+                    if self.current_row >= self.max_rows:
+                        self.get_logger().info("going to finish")
                         self.state = RobotState.FINISHED
                     else:
                         #self.state = RobotState.ROW_FOLLOW
@@ -275,17 +280,17 @@ class StateMachineNode(Node):
         elif self.state == RobotState.ROW_CHANGE:
 
             # From forward row → go RIGHT
-            if self.row % 2 == 1: # ODD
-                self.motion_pub.publish(Int32(data=4)) # RIGHT ROW CHANGE
-                self.line_mode_pub.publish(Int32(data=4)) # SLIDE RIGHT
+            if self.current_row % 2 == 1: # ODD
+                self.motion_pub.publish(Int32(data=18)) # RIGHT ROW CHANGE
+                self.line_mode_pub.publish(Int32(data=5)) # SLIDE RIGHT
 
                 if self.before_row_follow_detected:  # reuse a valid sensor
                     self.get_logger().info("Row change complete odd")
                     self.state = RobotState.BEFORE_ROW_FOLLOW
             
-            elif self.row % 2 == 0: # EVEN
-                self.motion_pub.publish(Int32(data=14)) # LEFT ROW CHANGE
-                self.line_mode_pub.publish(Int32(data=4)) # SLIDE LEFT
+            elif self.current_row % 2 == 0: # EVEN
+                self.motion_pub.publish(Int32(data=18)) # RIGHT ROW CHANGE
+                self.line_mode_pub.publish(Int32(data=5)) # SLIDE RIGHT
 
                 if self.before_row_follow_detected:  # reuse a valid sensor
                     self.get_logger().info("Row change complete even")
@@ -305,24 +310,24 @@ class StateMachineNode(Node):
         # ------- BEFORE ROW FOLLOW --------
         elif self.state == RobotState.BEFORE_ROW_FOLLOW:
 
-            if self.row % 2 == 1: # Odd row (changing at before row change)
+            if self.current_row % 2 == 1: # Odd row (changing at before row change)
                 self.line_mode_pub.publish(Int32(data=6))  # NO_LINE_SENSORS
                 self.motion_pub.publish(Int32(data=14))     # MOVE RIGHT 
                 if self.falling_edges[2] == 1 and not self.row_change_latched:  # Assuming L3 is the sensor
                     self.falling_edges = [0,0,0,0] # reset the falling edge
-                    self.row += 1
+                    self.current_row += 1
                     self.row_change_latched = True
-                    self.get_logger().info(f"Reached next row {self.row} after row change")
+                    self.get_logger().info(f"Reached next row {self.current_row} after row change")
                     self.state = RobotState.ROW_FOLLOW
             
-            elif self.row % 2 == 0: # Even row (changing at before row change)
+            elif self.current_row % 2 == 0: # Even row (changing at before row change)
                 self.line_mode_pub.publish(Int32(data=6))  # NO_LINE_SENSORS
                 self.motion_pub.publish(Int32(data=17))     # MOVE RIGHT 
                 if self.falling_edges[1] == 1 and not self.row_change_latched:  # Assuming L2 is the sensor
                     self.falling_edges = [0,0,0,0] # reset the falling edge
-                    self.row += 1
+                    self.current_row += 1
                     self.row_change_latched = True
-                    self.get_logger().info(f"Reached next row {self.row} after row change")
+                    self.get_logger().info(f"Reached next row {self.current_row} after row change")
                     self.state = RobotState.ROW_FOLLOW
 
 
@@ -334,6 +339,7 @@ class StateMachineNode(Node):
 
         # -------- FINISHED --------
         elif self.state == RobotState.FINISHED:
+            self.get_logger().info("Entered finish state")
             self.motion_pub.publish(Int32(data=5)) # forward without line sensors
             self.line_mode_pub.publish(Int32(data=6)) # no line sensors
             if self.end_course:

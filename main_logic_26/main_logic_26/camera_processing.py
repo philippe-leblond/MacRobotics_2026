@@ -116,7 +116,7 @@ class CameraProcessingNode(Node):
                 self.get_logger().warn("Failed to open camera")
                 return None
 
-            time.sleep(0.2)
+            time.sleep(0.5)
 
             for _ in range(3):
                 cap.read()

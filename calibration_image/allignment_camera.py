@@ -16,8 +16,8 @@ MAX_OUTPUT = 0.25
 
 REQUIRED_CENTERED_FRAMES = 3
 
-OFFSET_RATIO_YELLOW_RIGHT = 0.2
-OFFSET_RATIO_YELLOW_LEFT = -0.3
+OFFSET_RATIO_YELLOW_RIGHT = -0.05 # for the actuation task
+OFFSET_RATIO_YELLOW_LEFT = -0.27
 
 prev_error = 0.0
 prev_time = time.monotonic()

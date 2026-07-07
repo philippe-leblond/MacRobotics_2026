@@ -353,7 +353,7 @@ class UltrasonicProcessingNode(Node):
         # BEFORE ROW FOLLOW
         # =========================
         
-        if self.current_motion_state == 4:   # SLIDE RIGHT (ROW CHANGE)
+        if self.current_motion_state == 4 or 18:   # SLIDE RIGHT (ROW CHANGE)
 
             if self.current_row in self.before_row_follow_config:
                 sensor_index, threshold = self.before_row_follow_config[self.current_row]

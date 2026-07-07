@@ -25,25 +25,6 @@ class UltrasonicProcessingNode(Node):
         self.declare_parameter('init_slide_2_threshold', 36.0) # U1 > 36
         self.init_slide_2_threshold = self.get_parameter('init_slide_2_threshold').value
 
-        # self.declare_parameter('init_slide_3_threshold', 40.0) # u3 > 40
-        # self.init_slide_3_threshold = self.get_parameter('init_slide_3_threshold').value
-
-        # self.declare_parameter('init_forward_1_threshold', 9.0) # U4 > 9
-        # self.init_forward_1_threshold = self.get_parameter('init_forward_1_threshold').value
-
-        #self.declare_parameter('init_forward_2_threshold', 15.0)
-        #self.init_forward_2_threshold = self.get_parameter('init_forward_2_threshold').value
-
-        # -------------------------
-        # Side-wall configuration (ROW 1 <-> ROW 2 only)
-        # -------------------------
-        # Row 1 -> Row 2 : SLIDE LEFT  → U1 > threshold
-        # Row 2 -> Row 1 : SLIDE RIGHT → U3 < threshold
-        #self.side_wall_config = {
-        #    1: (0, 59.0),  # U1 > 59 # from row 1 to row 2 we look at U1 and expect it to be greater than 59 cm
-        #    2: (0, 25.0),  # U1 < 25 # from row 2 to row 1 we look at U1 and expect it to be less than 25 cm
-        #}
-
         # -------------------------
         # Plant detection config
         # -------------------------
@@ -52,52 +33,44 @@ class UltrasonicProcessingNode(Node):
 
             # Sensor index, operator, between_dashes, pid_target
             1: [
-                (3, ">", 50, 45), # 42
-                (3, ">", 70, 65), # 65
-                (1, "<", 103, 110), # 114
-                (1, "<", 79, 86), # 87
-                (1, "<", 53, 58), # 61
-                (1, "<", 25, 30), # 36
+                (3, ">", 42), # 42 0
+                (3, ">", 65), # 65 1
+                (1, "<", 114), # 114 2 
+                (1, "<", 87), # 87 3
+                (1, "<", 61), # 61 4 
+                (1, "<", 36), # 36 5
             ],
             2: [
-                (1, ">", 37, 40), # 39
-                (1, ">", 57, 60), # 61
-                (1, ">", 110, 113), # 87
-                (1, ">", 86, 89), # 113
-                (3, "<", 66, 63), # 64
-                (3, "<", 38, 35), # 38
+                (1, ">", 39), # 39
+                (1, ">", 61), # 61
+                (1, ">", 87), # 87
+                (1, ">", 113), # 113
+                (3, "<", 64), # 64
+                (3, "<", 38), # 38
             ],
             3: [
-                (3, ">", 43, 40),
-                (3, ">", 65, 60),
-                (3, ">", 92, 90),
-                (1, "<", 97, 94),
-                (1, "<", 71, 68),
-                (1, "<", 44, 40),
+                (3, ">", 42), # 42 0
+                (3, ">", 65), # 65 1
+                (1, "<", 114), # 114 2 
+                (1, "<", 87), # 87 3
+                (1, "<", 61), # 61 4 
+                (1, "<", 36), # 36 5
             ],
             4: [
-                (1, ">", 43, 40),
-                (1, ">", 70, 65),
-                (1, ">", 96, 92),
-                (3, "<", 93, 90),
-                (3, "<", 66, 65),
-                (3, "<", 44, 43),
+                (1, ">", 39), # 39
+                (1, ">", 61), # 61
+                (1, ">", 87), # 87
+                (1, ">", 113), # 113
+                (3, "<", 64), # 64
+                (3, "<", 38), # 38
             ],
             5: [
-                (3, ">", 43, 40),
-                (3, ">", 65, 60),
-                (3, ">", 92, 90),
-                (1, "<", 97, 94),
-                (1, "<", 71, 68),
-                (1, "<", 44, 40),
-            ],
-            6: [
-                (1, ">", 43, 40),
-                (1, ">", 70, 65),
-                (1, ">", 96, 92),
-                (3, "<", 93, 90),
-                (3, "<", 66, 65),
-                (3, "<", 44, 43),
+                (3, ">", 42), # 42 0
+                (3, ">", 65), # 65 1
+                (1, "<", 114), # 114 2 
+                (1, "<", 87), # 87 3
+                (1, "<", 61), # 61 4 
+                (1, "<", 36), # 36 5
             ],
         }
 
@@ -136,19 +109,10 @@ class UltrasonicProcessingNode(Node):
             5: (0, 10.0), # Row 6 → U1 < 26
         }
         
-        # self.side_wall_config = {
-
-        #     1: (2, 45.0),  # Row 2 → U3 > 59
-        #     2: (2, 84.0),  # Row 3 → U3 > 89
-        #     3: (0, 81.0),  # Row 4 → U1 < 84
-        #     4: (0, 41.0),  # Row 5 → U1 < 54
-        #     5: (2, 201.0)   # Row 6 → U1 < 24
-        # }
-
         self.current_plant = 0
         self.plant_latched = False
 
-        self.between_dashes = False
+        self.between_dashes = True
 
         # -------------------------
         # State input
@@ -251,10 +215,12 @@ class UltrasonicProcessingNode(Node):
         if msg.data == 0:
             self.get_logger().warn("🔄 Resetting latch for new row")
             self.plant_latched = False
+            
 
         elif msg.data != self.current_plant:
-            self.get_logger().warn("🔄 Resetting latch for plant change")
+            self.get_logger().warn("🔄 Resetting latch and between dashes for plant change")
             self.plant_latched = False
+            self.between_dashes = False
 
         self.current_plant = msg.data
 
@@ -283,7 +249,7 @@ class UltrasonicProcessingNode(Node):
                 f"[ULTRASONIC] current_row={self.current_row} "
                 f"current_plant={self.current_plant} "
                 f"motion={self.current_motion_state} "
-                f"latched={self.plant_latched}"
+                f"latched={self.plant_latched} "
                 f"between_dashes={self.between_dashes}"
             )
             self._last_plant_log_time = now
@@ -325,35 +291,23 @@ class UltrasonicProcessingNode(Node):
 
 
         # -------------------------
-        # Plant detection (ONLY in slow modes)
+        # Between Dashes 
         # -------------------------
-        between_dashes = False
-
         # Select correct plant table based on row
-        table = None
-
-        # Optional: keep motion constraint (recommended for now)
-        if self.current_row in self.row_plants:
-            if self.current_motion_state == 11 or self.current_motion_state == 12:
-                table = self.row_plants[self.current_row]
-            else:
-                table = None
-            
-
-        # Alternative (simpler, no motion filtering)
-        # table = self.row_plants.get(self.current_row, None)
+        table = self.row_plants.get(self.current_row)   
 
         if table is not None and self.current_plant < len(table):
-            sensor, op, threshold, pid_target = table[self.current_plant]
+            index = max(0, self.current_plant -1)
+            sensor, op, threshold = table[index]
             distance = distances[sensor]
 
-            if not self.plant_latched:
+            if not self.plant_latched and not self.between_dashes:
                 if op == ">" and distance > threshold:
-                    between_dashes = True
-                elif op == "<" and distance < threshold:
-                    between_dashes = True
+                    self.between_dashes = True
+                if op == "<" and distance < threshold:
+                    self.between_dashes = True
 
-                if between_dashes:
+                if self.between_dashes:
                     self.plant_latched = True
                     self.get_logger().info(
                         f"PLANT DETECTED: row={self.current_row} "
@@ -362,12 +316,10 @@ class UltrasonicProcessingNode(Node):
                         f"{op} {threshold}cm"
                     )
 
-        self.between_dashes_pub.publish(Bool(data=between_dashes))
+        self.between_dashes_pub.publish(Bool(data=self.between_dashes))
         # -------------------------
         # BEFORE ROW CHANGE detection (NEW)
         # -------------------------
-        #row_end_sensor = self.get_row_end_sensor_index()
-        #before_distance = distances[row_end_sensor]
 
         
         if self.current_motion_state in (1, 2):  # row follow, so won't detecet when if the robot is turning/correcting in front of the row change, but it's better than nothing and won't cause false positives during row change
@@ -380,13 +332,6 @@ class UltrasonicProcessingNode(Node):
         else:
             before_row_change_detected = False
 
-        #self.get_logger().info(
-        #    f"[DEBUG BEFORE_ROW_CHANGE] value={before_row_change_detected} | "
-        #    f"motion={self.current_motion_state} | row={self.current_row}"
-        #)
-
-
-
         self.before_row_change_pub.publish(Bool(data=before_row_change_detected))
 
         if before_row_change_detected:
@@ -394,77 +339,11 @@ class UltrasonicProcessingNode(Node):
                 f"U{sensor_index+1}={distance_before_row_change:.1f}cm < {threshold}cm"
             )
 
-        # -------------------------
-        # Row end detection (unchanged)
-        # -------------------------
-        # if self.current_motion_state in (11, 12):  # row follow, so won't detecet when if the robot is turning/correcting in front of the row change, but it's better than nothing and won't cause false positives during row change
-
-        #     if self.current_row in self.row_end_config:
-        #         sensor_index, threshold = self.row_end_config[self.current_row]
-        #         distance_row_end = distances[sensor_index]
-        #         row_end_detected = distance_row_end < threshold
-        #     else:
-        #         row_end_detected = False
-        # else:
-        #     row_end_detected = False
-
-        # #self.get_logger().info(
-        # #    f"[DEBUG END_ROW] value={row_end_detected} | "
-        # #    f"motion={self.current_motion_state} | row={self.current_row}"
-        # #)   
-
-        # self.row_end_pub.publish(Bool(data=row_end_detected))
-
-        # if row_end_detected:
-        #    self.get_logger().info(
-        #         f"ROW END DETECTED: U{sensor_index+1}={distance_row_end:.1f}cm < {threshold}cm "
-        #         f"(row {self.current_row})"
-        #     )
-    
-
-        # =========================
-        # ROW CHANGE ARRIVAL
-        # =========================
-        # if self.current_motion_state == 14:   # SLOW SLIDE RIGHT (ROW CHANGE)
-        #     if self.current_row in self.side_wall_config:
-        #         sensor_index, threshold = self.side_wall_config[self.current_row]
-
-        #         if sensor_index == 0:
-        #             arrival_detected = distances[sensor_index] < threshold
-        #         elif sensor_index == 2:
-        #             arrival_detected = distances[sensor_index] > threshold
-        #         else:
-        #             arrival_detected = False
-
-        #         sensor_name = f"U{sensor_index+1}"
-
-        #         if arrival_detected:
-        #             self.get_logger().info(
-        #                 f"ROW CHANGE ARRIVAL DETECTED: {sensor_name}="
-        #                 f"{distances[sensor_index]:.1f}cm (threshold {threshold}cm) "
-        #                 f"(row {self.current_row})"
-        #             )
-        #     else:
-        #         arrival_detected = False
-
-        # else:
-        #     arrival_detected = False
-        
-        
-        # self.get_logger().info(
-        #     f"[ROW CHANGE ARRIVAL] value={arrival_detected} | "
-        #     f"motion={self.current_motion_state} | row={self.current_row}"
-        # )   
-
-        # self.row_change_arrival_pub.publish(Bool(data=arrival_detected))
-        # self.side_wall_pub.publish(Bool(data=arrival_detected))
-
-
         # =========================
         # BEFORE ROW FOLLOW
         # =========================
         
-        if self.current_motion_state == 4:   # SLIDE RIGHT (ROW CHANGE)
+        if self.current_motion_state == 4 or 18:   # SLIDE RIGHT (ROW CHANGE)
 
             if self.current_row in self.before_row_follow_config:
                 sensor_index, threshold = self.before_row_follow_config[self.current_row]
@@ -475,79 +354,15 @@ class UltrasonicProcessingNode(Node):
                     before_row_follow_detected = distances[sensor_index] < threshold
                 else:
                     before_row_follow_detected = False
-
-                sensor_name = f"U{sensor_index+1}"
-
-                # if before_row_follow_detected:
-                #     self.get_logger().info(
-                #         f"BEFORE ROW FOLLOW DETECTED: {sensor_name}="
-                #         f"{distances[sensor_index]:.1f}cm (threshold {threshold}cm) "
-                #         f"(row {self.current_row})"
-                #     )
             else:
                 before_row_follow_detected = False
 
         else:
             before_row_follow_detected = False
-
-        # self.get_logger().info(
-        #     f"[BEFORE ROW FOLLOW] value={before_row_follow_detected} | "
-        #     f"motion={self.current_motion_state} | row={self.current_row}"
-        # )   
       
         self.before_row_follow_pub.publish(Bool(data=before_row_follow_detected))
         self.row_change_start_pub.publish(Bool(data=False))
 
-        # -------------------------
-        # PID plant alignment
-        # -------------------------
-
-        if self.current_motion_state == 15:
-
-            config = self.get_current_plant_config()
-
-            if config is not None:
-
-                sensor, op, threshold, pid_target = config
-
-                distance = distances[sensor]
-
-                pid_output = self.compute_p_output(
-                    distance,
-                    pid_target,
-                    op
-                )
-
-                error = self.compute_plant_error(
-                    distance,
-                    pid_target,
-                    op
-                )
-
-                position_reached = abs(error) < self.pid_deadband
-
-                self.plant_position_reached_pub.publish( # sending to state machine to go to next plant
-                    Bool(data=position_reached)
-                )
-
-                self.plant_pid_pub.publish( # sending to motors
-                    Float32(data=pid_output)
-                )
-
-        # if arrival_detected:
-        #     self.get_logger().info(
-        #         f"ROW CHANGE ARRIVAL DETECTED: {sensor_name}={distances[sensor_index]:.1f}cm > {threshold}cm "
-        #         f"(row {self.current_row})"
-        #     )
-            
-            
-
-
-        # else:
-        #     # During other motion modes, publish false to avoid stale row-change state.
-        #     self.row_change_start_pub.publish(Bool(data=False))
-        #     self.row_change_arrival_pub.publish(Bool(data=False))
-        #     self.side_wall_pub.publish(Bool(data=False))
 
         # Log current distances periodically (every ~5 seconds to avoid spam)
         current_time = time.time()
@@ -572,45 +387,7 @@ class UltrasonicProcessingNode(Node):
         elif self.current_row % 2 == 0: # even rows (2,4,6)
             return 3  # U4
         
-    def get_current_plant_config(self):
 
-        if self.current_row not in self.row_plants:
-            return None
-
-        table = self.row_plants[self.current_row]
-
-        if self.current_plant >= len(table):
-            return None
-
-        return table[self.current_plant]
-
-
-    def compute_plant_error(self, distance, target, op):
-
-        if op == ">":
-            return target - distance
-
-        elif op == "<":
-            return distance - target
-
-        return 0.0
-
-
-    def compute_p_output(self, distance, target, op):
-
-        error = self.compute_plant_error(
-            distance,
-            target,
-            op
-        )
-
-        if abs(error) < self.pid_deadband:
-            return 0.0
-
-        return max(
-            -0.25,
-            min(0.25, self.kp * error)
-        )
 
 
 
