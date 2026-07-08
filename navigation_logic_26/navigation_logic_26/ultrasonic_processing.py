@@ -39,7 +39,7 @@ class UltrasonicProcessingNode(Node):
         self.init_slide_threshold = self.get_parameter(
             'init_slide_threshold').value
         
-        self.declare_parameter('end_course_threshold', 2.0) # U4 <= 2.0cm to detect the wall on the left for the initial slide left in row 1
+        self.declare_parameter('end_course_threshold', 4.0) # U4 <= 2.0cm to detect the wall on the left for the initial slide left in row 1
         self.end_course_threshold = self.get_parameter(
             'end_course_threshold').value
 
@@ -383,7 +383,7 @@ class UltrasonicProcessingNode(Node):
         # FINALIZE END COURSE DETECTION
         # =========================
 
-        if self.current_motion_state == 6: # move backward
+        if self.current_motion_state == 12: # move backward
             end_course = distances[3] <= self.end_course_threshold # U4 <= 2cm
             self.end_course_pub.publish(Bool(data=end_course))
 

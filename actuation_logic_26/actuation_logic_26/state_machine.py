@@ -325,10 +325,12 @@ class StateMachineNode(Node):
         elif self.state == RobotState.FINISH_ROW_FOLLOW:
             self.motion_mode_pub.publish(Int32(data=1))
             self.line_mode_pub.publish(Int32(data=0))
+            self.get_logger().info(f"presently row {self.row}")
 
             if self.row_end:
                 self.row += 1
                 self.plant_count = 0
+                self.get_logger().info(f"end of row detected, presently row {self.row}")
                 self.plant_index_pub.publish(Int32(data=0))
                 self.state = RobotState.TURN_180
 
@@ -336,12 +338,24 @@ class StateMachineNode(Node):
         # TURN 180 FORWARD
         # ==================================================
         elif self.state == RobotState.TURN_180:
-            self.motion_mode_pub.publish(Int32(data=10))  # turn 180 forward #MAYBE 9
-            self.line_mode_pub.publish(Int32(data=6))     # NO LINE SENSORS
+            if self.row % 2 == 1:
+                self.motion_mode_pub.publish(Int32(data=10))  # turn 180 forward #MAYBE 9
+                self.line_mode_pub.publish(Int32(data=6))     # NO LINE SENSORS
+                self.get_logger().info("turning odd")
 
-            if self.falling_edges[3] == 1:  # Assuming L4 is the first sensor: actually worked once WTF
-                self.falling_edges = [0,0,0,0]  # reset the falling edge
-                self.state = RobotState.ROW_FOLLOW
+                if self.falling_edges[0] == 1:  # Assuming L1 is the first sensor: actually worked once WTF
+                    self.falling_edges = [0,0,0,0]  # reset the falling edge
+                    self.state = RobotState.ROW_FOLLOW
+            
+            elif self.row % 2 == 0:
+                self.motion_mode_pub.publish(Int32(data=10))  # turn 180 forward #MAYBE 10
+                self.line_mode_pub.publish(Int32(data=6))     # NO LINE SENSORS
+                self.get_logger().info("turning even")
+
+
+                if self.falling_edges[3] == 1:  # Assuming L4 is the first sensor: actually worked once WTF
+                    self.falling_edges = [0,0,0,0]  # reset the falling edge
+                    self.state = RobotState.ROW_FOLLOW
 
         # # ==================================================
         # # ROW EVEN — backward, L3/L4

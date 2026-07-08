@@ -151,9 +151,9 @@ class MotionControllerNode(Node):
             if self.line_direction == 0:
                 cmd = f"<MOVELEFT:{self.slide_speed}>"
             elif self.line_direction > 0:
-                cmd = f"<FORWARD:{self.turn_speed}>" #need to test if this should be turn left or right, because the robot goes backward
+                cmd = f"<CURVECWMOVELEFT:{self.turn_speed}>" #forward
             else:
-                cmd = f"<BACKWARD:{self.turn_speed}>"
+                cmd = f"<CURVECCWMOVELEFT:{self.turn_speed}>" #backward
         # ---- LINE FOLLOW SLIDE RIGHT ----
         elif self.motion_mode == 4:
             if self.line_direction == 0:
@@ -182,15 +182,15 @@ class MotionControllerNode(Node):
 
         # ---- TURN LEFT ----
         elif self.motion_mode == 9:
-            cmd = f"<TURNCW:{self.turn_speed}>" # ODD
+            cmd = f"<TURNCW:{self.turn_speed}>"
 
         # ---- TURN RIGHT ----
         elif self.motion_mode == 10:
-            cmd = f"<TURNCCW:{self.turn_speed}>" # EVEN
+            cmd = f"<TURNCCW:{self.turn_speed}>"
         
         # ---- SLOW ROW FORWARD ----
         elif self.motion_mode == 11:
-            cmd = f"<FORWARD:{self.slow_row_speed}>" 
+            cmd = f"<FORWARD:{self.slow_row_speed}>"
 
         # ---- SLOW ROW BACKWARD ----
         elif self.motion_mode == 12:

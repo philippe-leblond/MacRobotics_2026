@@ -220,7 +220,7 @@ class UltrasonicProcessingNode(Node):
         elif msg.data != self.current_plant:
             self.get_logger().warn("🔄 Resetting latch and between dashes for plant change")
             self.plant_latched = False
-            self.between_dashes = False
+            self.between_dashes = True # Changed it to True without testing
 
         self.current_plant = msg.data
 

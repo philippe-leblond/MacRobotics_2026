@@ -222,36 +222,22 @@ class PlantAlignmentNode(Node):
 
         if not yellow:
             self.get_logger().warn("NO YELLOW CONTOUR")
-
-            self.pid_pub.publish(
-                Float32(data=0.0)
-            )
-
             self.positioning_pub.publish(
                 Bool(data=True)
             )
-
-            return
 
         if not green:
             self.get_logger().warn("NO GREEN CONTOUR")
-
-            self.pid_pub.publish(
-                Float32(data=0.0)
-            )
-
             self.positioning_pub.publish(
                 Bool(data=True)
             )
-
-            return
 
         self.get_logger().warn(
             f"yellow_contours={len(yellow)} "
             f"green_contours={len(green)}"
         )
         
-        if not yellow and not green:
+        if not yellow or not green:
             self.pid_pub.publish(
                 Float32(data=0.0)
             )

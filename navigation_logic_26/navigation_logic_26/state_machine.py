@@ -340,7 +340,7 @@ class StateMachineNode(Node):
         # -------- FINISHED --------
         elif self.state == RobotState.FINISHED:
             self.get_logger().info("Entered finish state")
-            self.motion_pub.publish(Int32(data=5)) # forward without line sensors
+            self.motion_pub.publish(Int32(data=12)) # slow backward without line sensors
             self.line_mode_pub.publish(Int32(data=6)) # no line sensors
             if self.end_course:
                 self.motion_pub.publish(Int32(data=0))  # STOP
