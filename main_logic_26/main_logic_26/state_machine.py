@@ -61,12 +61,12 @@ class StateMachineNode(Node):
         self.create_subscription(Bool, '/between_dashes', self.between_dashes_cb, 10)
         self.create_subscription(Bool, '/init_slide_wall_1_detected', self.init_slide_1_cb, 10)
         self.create_subscription(Bool, '/init_slide_wall_2_detected', self.init_slide_2_cb, 10)
-        # self.create_subscription(Bool, '/init_slide_wall_3_detected', self.init_slide_3_cb, 10)
+        self.create_subscription(Bool, '/init_slide_wall_3_detected', self.init_slide_3_cb, 10)
         self.create_subscription(Bool, '/init_forward_wall_1_detected', self.init_forward_1_cb, 10)
         self.create_subscription(Int32, '/camera_choice', self.camera_choice_cb, 10) # NEED TO CREATE IN THE FUTUR CAMERA NODE
         self.create_subscription(Bool, '/before_row_change_detected', self.before_row_change_cb, 10)
         self.create_subscription(Bool, '/before_row_follow_detected', self.before_row_follow_cb, 10)
-        # self.create_subscription(Bool, '/row_change_arrival_detected', self.row_change_arrival_cb, 10) 
+        self.create_subscription(Bool, '/row_change_arrival_detected', self.row_change_arrival_cb, 10) 
         self.create_subscription(Int32MultiArray, '/line_falling_edges', self.falling_edges_cb, 10)
         # self.create_subscription(Bool, '/plant_position_reached', self.plant_position_cb, 10)
         self.create_subscription(Bool, '/plant_position_reached_camera', self.plant_position_camera_cb, 10)
@@ -84,7 +84,7 @@ class StateMachineNode(Node):
         self.row_end = False
         self.forward_pair_black = False
         self.backward_pair_black = False
-        self.between_dashes = True # I want it True for the first dash
+        self.between_dashes = False # 
         self.init_slide_wall_1_detected = False
         self.init_slide_wall_2_detected = False
         self.init_slide_wall_3_detected = False
@@ -101,6 +101,7 @@ class StateMachineNode(Node):
         self.end_course_detected = False
         self.max_rows = 5 # when five it's time to go in the finish and the thresold it >=5
         self.falling_edges = [0,0,0,0]
+        self.init_start_time = 0.0
 
         self.timer = self.create_timer(0.1, self.step)
 
@@ -183,11 +184,17 @@ class StateMachineNode(Node):
                 f"backward pair= {self.backward_pair_black}"
             )
             self._last_plant_log_time = now
+        
+        current_time = time.time()
 
         # ===== INIT: SLIDE LEFT =====
         if self.state == RobotState.INIT_SLIDE_LEFT:
-            self.line_mode_pub.publish(Int32(data=6))   # NO LINE DETECTION
-            self.motion_mode_pub.publish(Int32(data=8))      # SLOW SLIDE RIGHT ##WHY data=8 doesn't work
+            if current_time - self.init_start_time < 2.0: # 1 seconds timeout for initialization
+                self.motion_pub.publish(Int32(data=0))  # STOP
+              # Short delay to read well the ultrasonic sesnsors at the beginning
+            else:
+                self.line_mode_pub.publish(Int32(data=6))   # NO LINE DETECTION
+                self.motion_mode_pub.publish(Int32(data=8))      # SLOW SLIDE RIGHT 
 
             if self.init_slide_wall_1_detected:
                 self.get_logger().info("Init slide 1 complete")
@@ -198,7 +205,10 @@ class StateMachineNode(Node):
             self.motion_mode_pub.publish(Int32(data=5))  # MOVE FORWARD
             self.line_mode_pub.publish(Int32(data=6))  # NO LINE DETECTION
 
-            if self.falling_edges[1] == 1:  # Assuming L2 is the sensor
+            if (
+                    self.falling_edges[1] == 1
+                    or self.init_slide_wall_3_detected
+                ):  # Assuming L2 is the sensor
                     self.falling_edges = [0,0,0,0] # reset the falling edge
                     self.get_logger().info("Init move forward complete")
                     self.state = RobotState.INIT_CHANGE_ROW
@@ -217,7 +227,7 @@ class StateMachineNode(Node):
             self.motion_mode_pub.publish(Int32(data=16))  # SLIDE RIGHT EVEN ROW
             self.line_mode_pub.publish(Int32(data=6))  # NO LINE DETECTION
 
-            if self.falling_edges[1] == 1:  # Assuming L2 is the sensor
+            if self.falling_edges[1] == 1 or self.init_slide_wall_3_detected:  # Assuming L2 is the sensor
                 self.falling_edges = [0,0,0,0] # reset the falling edge
                 self.get_logger().info("Initialization complete")
                 self.state = RobotState.ROW_FOLLOW
@@ -493,7 +503,10 @@ class StateMachineNode(Node):
             if self.row % 2 == 1: # Odd row (changing at before row change)
                 self.line_mode_pub.publish(Int32(data=6))  # NO_LINE_SENSORS
                 self.motion_mode_pub.publish(Int32(data=14))     # MOVE RIGHT 
-                if self.falling_edges[2] == 1 and not self.row_change_latched:  # Assuming L3 is the sensor
+                if (
+                        self.falling_edges[2] == 1
+                        or self.row_change_arrival_detected
+                    ) and not self.row_change_latched:  # Assuming L3 is the sensor
                     self.falling_edges = [0,0,0,0] # reset the falling edge
                     self.row += 1
                     self.row_change_latched = True
@@ -503,7 +516,10 @@ class StateMachineNode(Node):
             elif self.row % 2 == 0: # Even row (changing at before row change)
                 self.line_mode_pub.publish(Int32(data=6))  # NO_LINE_SENSORS
                 self.motion_mode_pub.publish(Int32(data=17))     # MOVE RIGHT 
-                if self.falling_edges[1] == 1 and not self.row_change_latched:  # Assuming L2 is the sensor
+                if (
+                        self.falling_edges[1] == 1
+                        or self.row_change_arrival_detected
+                    ) and not self.row_change_latched:  # Assuming L2 is the sensor
                     self.falling_edges = [0,0,0,0] # reset the falling edge
                     self.row += 1
                     self.row_change_latched = True

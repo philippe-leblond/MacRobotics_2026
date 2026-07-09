@@ -14,7 +14,7 @@ CAMERA_INDEX = "/dev/v4l/by-id/usb-XZC-260109-A_Streaming_Webcam_Audio_01.00.00-
 FRAME_RATE = 5
 
 MIN_AREA = 2500
-HEIGHT_THRESHOLD = 125
+HEIGHT_THRESHOLD = 150
 
 
 # -----------------------------

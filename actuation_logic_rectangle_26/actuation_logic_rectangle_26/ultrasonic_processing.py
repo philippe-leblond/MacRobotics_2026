@@ -25,10 +25,23 @@ class UltrasonicProcessingNode(Node):
         self.declare_parameter('init_slide_2_threshold', 36.0) # U1 > 36
         self.init_slide_2_threshold = self.get_parameter('init_slide_2_threshold').value
 
+        self.declare_parameter('init_slide_3_threshold', 45.0) # u1 > 43
+        self.init_slide_3_threshold = self.get_parameter('init_slide_3_threshold').value
+
        # Before row follow detection
         self.before_row_follow_latched = False
         self.before_row_follow_even_threshold = 45.0  # U1
-        self.before_row_follow_odd_threshold = 12.0   # U3
+        self.before_row_follow_odd_threshold = 82.0   # U3
+
+        # -------------------------
+        # Side-wall configuration (ROW 1 <-> ROW 2 only)
+        # -------------------------
+        # Row 1 -> Row 2 : SLIDE LEFT  → U1 > threshold
+        # Row 2 -> Row 1 : SLIDE RIGHT → U3 < threshold
+        #self.side_wall_config = {
+        #    1: (0, 59.0),  # U1 > 59 # from row 1 to row 2 we look at U1 and expect it to be greater than 59 cm
+        #    2: (0, 25.0),  # U1 < 25 # from row 2 to row 1 we look at U1 and expect it to be less than 25 cm
+        #}
 
         # -------------------------
         # Plant detection config
@@ -78,19 +91,19 @@ class UltrasonicProcessingNode(Node):
 
 
 
-        #self.side_wall_pub = self.create_publisher(
-        #    Bool, '/side_wall_detected', 10)
+        self.side_wall_pub = self.create_publisher(
+           Bool, '/side_wall_detected', 10)
 
         self.init_slide_wall_1_pub = self.create_publisher(Bool, '/init_slide_wall_1_detected', 10)
         self.init_slide_wall_2_pub = self.create_publisher(Bool, '/init_slide_wall_2_detected', 10)
-        # self.init_slide_wall_3_pub = self.create_publisher(Bool, '/init_slide_wall_3_detected', 10)
+        self.init_slide_wall_3_pub = self.create_publisher(Bool, '/init_slide_wall_3_detected', 10)
 
         self.init_forward_wall_1_pub = self.create_publisher(Bool, '/init_forward_wall_1_detected', 10)
         #self.init_forward_wall_2_pub = self.create_publisher(Bool, '/init_forward_wall_2_detected', 10)
 
 
-        #self.row_change_arrival_pub = self.create_publisher(
-        #    Bool, '/row_change_arrival_detected', 10)
+        self.row_change_arrival_pub = self.create_publisher(
+           Bool, '/row_change_arrival_detected', 10)
 
         self.between_dashes_pub = self.create_publisher(
             Bool, '/between_dashes', 10)
@@ -214,11 +227,15 @@ class UltrasonicProcessingNode(Node):
         # INIT SLIDE 2 (your U1 > 36 logic)
         det_slide_2 = distances[0] > self.init_slide_2_threshold
 
+        # INIT SLIDE  (your U1 > 36 logic)
+        det_slide_3 = distances[0] > self.init_slide_3_threshold
+
 
         # Publish ALL detections always
         self.init_slide_wall_1_pub.publish(Bool(data=det_slide_1))
         # self.init_forward_wall_1_pub.publish(Bool(data=det_forward_1))
         self.init_slide_wall_2_pub.publish(Bool(data=det_slide_2))
+        self.init_slide_wall_3_pub.publish(Bool(data=det_slide_3))
 
         # -------------------------
         # Plant detection (ONLY in slow modes)
@@ -269,6 +286,19 @@ class UltrasonicProcessingNode(Node):
         self.before_row_follow_pub.publish(
             Bool(data=before_row_follow_detected)
         )
+
+        # -------------------------
+        # Row change arrival (LEFT & RIGHT)
+        # -------------------------
+        arrival_detected = False
+
+        if self.current_row % 2 == 1:
+            arrival_detected = distances[0] >= 76.0  # U1 # NEED TO MEASURE
+        elif self.current_row % 2 == 0:
+            arrival_detected = distances[0] <= 50.0  # U1 # NEED TO MEASURE
+
+        self.row_change_arrival_pub.publish(Bool(data=arrival_detected))
+        self.side_wall_pub.publish(Bool(data=arrival_detected))
 
 
 def main():

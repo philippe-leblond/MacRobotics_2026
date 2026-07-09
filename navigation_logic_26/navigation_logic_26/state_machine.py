@@ -31,7 +31,7 @@ class StateMachineNode(Node):
         self.row_change_latched = False  # To prevent multiple detections during a single row change
 
         # self.row_end_detected = False
-        # self.side_wall_detected = False
+        self.side_wall_detected = False
         self.line_detected = False
         self.init_slide_wall_detected = False
         # self.init_slide_wall_detected_time = None
@@ -61,8 +61,8 @@ class StateMachineNode(Node):
         # self.create_subscription(
         #     Bool, '/row_end_detected', self.row_end_cb, 10)
 
-        # self.create_subscription(
-        #     Bool, '/side_wall_detected', self.side_wall_cb, 10)
+        self.create_subscription(
+            Bool, '/side_wall_detected', self.side_wall_cb, 10)
 
         self.create_subscription(
             Bool, '/init_slide_wall_detected', self.init_slide_wall_cb, 10)
@@ -127,13 +127,8 @@ class StateMachineNode(Node):
     # def row_end_cb(self, msg):
     #     self.row_end_detected = msg.data
 
-    # def side_wall_cb(self, msg):
-    #     old_value = self.side_wall_detected
-    #     self.side_wall_detected = msg.data
-    #     if old_value != self.side_wall_detected:
-    #         self.get_logger().info(
-    #             f"side_wall_detected state changed: {self.side_wall_detected}"
-    #         )
+    def side_wall_cb(self, msg):
+        self.side_wall_detected = msg.data
 
     def init_slide_wall_cb(self, msg):
         self.init_slide_wall_detected = msg.data
@@ -184,7 +179,7 @@ class StateMachineNode(Node):
 
         # ===== INIT: SLIDE RIGHT =====
         if self.state == RobotState.INIT_SLIDE_LEFT:
-            if current_time < 2.0:  # 1 seconds timeout for initialization
+            if current_time - self.init_start_time < 2.0: # 1 seconds timeout for initialization
                 self.motion_pub.publish(Int32(data=0))  # STOP
               # Short delay to read well the ultrasonic sesnsors at the beginning
             else:
@@ -313,7 +308,10 @@ class StateMachineNode(Node):
             if self.current_row % 2 == 1: # Odd row (changing at before row change)
                 self.line_mode_pub.publish(Int32(data=6))  # NO_LINE_SENSORS
                 self.motion_pub.publish(Int32(data=14))     # MOVE RIGHT 
-                if self.falling_edges[2] == 1 and not self.row_change_latched:  # Assuming L3 is the sensor
+                if (
+                        (self.falling_edges[2] == 1 or self.side_wall_detected)
+                        and not self.row_change_latched
+                    ):  # Assuming L3 is the sensor
                     self.falling_edges = [0,0,0,0] # reset the falling edge
                     self.current_row += 1
                     self.row_change_latched = True
@@ -323,7 +321,10 @@ class StateMachineNode(Node):
             elif self.current_row % 2 == 0: # Even row (changing at before row change)
                 self.line_mode_pub.publish(Int32(data=6))  # NO_LINE_SENSORS
                 self.motion_pub.publish(Int32(data=17))     # MOVE RIGHT 
-                if self.falling_edges[1] == 1 and not self.row_change_latched:  # Assuming L2 is the sensor
+                if (
+                        (self.falling_edges[1] == 1 or self.side_wall_detected)
+                        and not self.row_change_latched
+                    ):  # Assuming L2 is the sensor
                     self.falling_edges = [0,0,0,0] # reset the falling edge
                     self.current_row += 1
                     self.row_change_latched = True

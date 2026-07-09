@@ -54,13 +54,13 @@ class StateMachineNode(Node):
 
         # ---------- Subscriptions ----------
         self.create_subscription(Bool, '/row_end_detected', self.row_end_cb, 10)
-        #self.create_subscription(Bool, '/row_change_arrival_detected', self.row_change_arrival_cb, 10)
+        self.create_subscription(Bool, '/row_change_arrival_detected', self.row_change_arrival_cb, 10)
         self.create_subscription(Bool, '/forward_pair_black', self.forward_pair_cb, 10)
         self.create_subscription(Bool, '/backward_pair_black', self.backward_pair_cb, 10)
         self.create_subscription(Bool, '/between_dashes', self.between_dashes_cb, 10)
         self.create_subscription(Bool, '/init_slide_wall_1_detected', self.init_slide_1_cb, 10)
         self.create_subscription(Bool, '/init_slide_wall_2_detected', self.init_slide_2_cb, 10)
-        #self.create_subscription(Bool, '/init_slide_wall_3_detected', self.init_slide_3_cb, 10)
+        self.create_subscription(Bool, '/init_slide_wall_3_detected', self.init_slide_3_cb, 10)
         self.create_subscription(Bool, '/init_forward_wall_1_detected', self.init_forward_1_cb, 10)
         #self.create_subscription(Bool, '/init_forward_wall_2_detected', self.init_forward_2_cb, 10)
         self.create_subscription(Int32,'/force_state', self.force_state_cb, 10)
@@ -82,14 +82,14 @@ class StateMachineNode(Node):
 
 
         self.row_end = False
-        #self.row_change_arrival = False
+        self.row_change_arrival = False
         self.forward_pair_black = False
         
         self.backward_pair_black = False
         self.between_dashes = True # I want it True for the first dash
         self.init_slide_wall_1_detected = False
         self.init_slide_wall_2_detected = False
-        #self.init_slide_wall_3_detected = False
+        self.init_slide_wall_3_detected = False
         self.init_forward_wall_1_detected = False
         #self.init_forward_wall_2_detected = False
         self.on_dashed_line = False
@@ -98,6 +98,7 @@ class StateMachineNode(Node):
         self.row_change_latched = False
         self.forward_pair_latched = False
         self.backward_pair_latched = False
+        self.init_start_time = 0.0
 
         # Competition timer
         self.start_time = time.monotonic()
@@ -113,8 +114,8 @@ class StateMachineNode(Node):
     def row_end_cb(self, msg):
         self.row_end = msg.data
 
-    #def row_change_arrival_cb(self, msg):
-    #    self.row_change_arrival = msg.data
+    def row_change_arrival_cb(self, msg):
+       self.row_change_arrival = msg.data
 
     def forward_pair_cb(self, msg):
         self.forward_pair_black = msg.data
@@ -134,8 +135,8 @@ class StateMachineNode(Node):
     def init_slide_2_cb(self, msg):
         self.init_slide_wall_2_detected = msg.data
 
-    # def init_slide_3_cb(self, msg):
-    #     self.init_slide_wall_3_detected = msg.data
+    def init_slide_3_cb(self, msg):
+        self.init_slide_wall_3_detected = msg.data
 
     def init_forward_1_cb(self, msg):
         self.init_forward_wall_1_detected = msg.data
@@ -219,11 +220,16 @@ class StateMachineNode(Node):
             )
             self._last_plant_log_time = now
 
+        current_time = time.time()
 
         # ===== INIT: SLIDE LEFT =====
         if self.state == RobotState.INIT_SLIDE_LEFT:
-            self.line_mode_pub.publish(Int32(data=6))   # NO LINE DETECTION
-            self.motion_mode_pub.publish(Int32(data=14))      # SLOW SLIDE RIGHT ##WHY data=8 doesn't work
+            if current_time - self.init_start_time < 2.0: # 1 seconds timeout for initialization
+                self.motion_pub.publish(Int32(data=0))  # STOP
+              # Short delay to read well the ultrasonic sesnsors at the beginning
+            else:
+                self.line_mode_pub.publish(Int32(data=6))   # NO LINE DETECTION
+                self.motion_mode_pub.publish(Int32(data=14))      # SLOW SLIDE RIGHT 
 
             if self.init_slide_wall_1_detected:
                 self.get_logger().info("Init slide 1 complete")
@@ -253,7 +259,7 @@ class StateMachineNode(Node):
             self.motion_mode_pub.publish(Int32(data=16))  # SLIDE RIGHT EVEN ROW
             self.line_mode_pub.publish(Int32(data=6))  # NO LINE DETECTION
 
-            if self.falling_edges[1] == 1:  # Assuming L2 is the sensor
+            if self.falling_edges[1] == 1 or self.init_slide_wall_3_detected:  # Assuming L2 is the sensor
                 self.falling_edges = [0,0,0,0] # reset the falling edge
                 self.get_logger().info("Initialization complete")
                 self.state = RobotState.ROW_FOLLOW
@@ -459,7 +465,7 @@ class StateMachineNode(Node):
             if self.row % 2 == 1: # Odd row (changing at before row change)
                 self.line_mode_pub.publish(Int32(data=6))  # NO_LINE_SENSORS
                 self.motion_mode_pub.publish(Int32(data=14))     # MOVE RIGHT SLOWLY
-                if self.falling_edges[2] == 1 and not self.row_change_latched:  # Assuming L3 is the sensor
+                if (self.falling_edges[2] == 1 or self.row_change_arrival) and not self.row_change_latched:  # Assuming L3 is the sensor
                     self.falling_edges = [0,0,0,0] # reset the falling edge
                     self.row += 1
                     self.row_change_latched = True
@@ -469,7 +475,7 @@ class StateMachineNode(Node):
             elif self.row % 2 == 0: # Even row (changing at before row change)
                 self.line_mode_pub.publish(Int32(data=6))  # NO_LINE_SENSORS
                 self.motion_mode_pub.publish(Int32(data=13))     # MOVE LEFT SLOWLY 
-                if self.falling_edges[1] == 1 and not self.row_change_latched:  # Assuming L2 is the sensor
+                if (self.falling_edges[1] == 1 or self.row_change_arrival) and not self.row_change_latched:  # Assuming L2 is the sensor
                     self.falling_edges = [0,0,0,0] # reset the falling edge
                     self.row += 1
                     self.row_change_latched = True
@@ -486,59 +492,6 @@ class StateMachineNode(Node):
             # Optional: tell motor controller to stop
             if self.serMotor is not None:
                 self.serMotor.write(b'<STOP>\n')
-       
-
-        # # ==================================================
-        # # ROW EVEN — backward, L3/L4
-        # # ==================================================
-        # elif self.state == RobotState.ROW_BACKWARD:
-        #     self.row_index_pub.publish(Int32(data=self.row))
-        #     self.motion_mode_pub.publish(Int32(data=2))  # backward
-        #     self.line_mode_pub.publish(Int32(data=2))    # ROW_FOLLOW_EVEN
-
-        #     if self.backward_pair_black and not self.on_dashed_line:
-        #         self.on_dashed_line = True
-        #         self.get_logger().info("Backward dashed line detected, slowing down")
-        #         self.state = RobotState.ROW_BACKWARD_SLOW
-
-        # # ==================================================
-        # # ROW ODD SLOW
-        # # ================================================== 
-
-        # elif self.state == RobotState.ROW_BACKWARD_SLOW:
-        #     self.motion_mode_pub.publish(Int32(data=12))  # slow backward
-        #     self.line_mode_pub.publish(Int32(data=6))     # NO LINE SENSORS
-
-        #     if self.plant_detected:
-        #         self.motion_mode_pub.publish(Int32(data=0))
-        #         self.serServo.write(b"servo1:180\n")
-        #         self.get_logger().info("Plant knocked down, waiting 1 second")
-        #         self.wait_start = time.time()
-        #         self.state = RobotState.WAIT
-
-        # # ==================================================
-        # # FINISH ROW EVEN
-        # # ==================================================
-        # elif self.state == RobotState.FINISH_ROW_BACKWARD:
-        #     self.motion_mode_pub.publish(Int32(data=2))
-        #     self.line_mode_pub.publish(Int32(data=2))
-
-        #     if self.row_end:
-        #         self.row += 1
-        #         self.plant_count = 0
-        #         self.plant_index_pub.publish(Int32(data=0))
-        #         self.state = RobotState.ROW_FORWARD
-
-        # # =================================================
-        # # TURN 180 BACKWARD
-        # # ==================================================
-        # elif self.state == RobotState.TURN_180_BACKWARD:
-        #     self.motion_mode_pub.publish(Int32(data=9))  # turn 180 backward #MAYBE 10
-        #     self.line_mode_pub.publish(Int32(data=6))     # NO LINE SENSORS
-
-        #     if self.falling_edges[2] == 1:  # Assuming L3 is the third sensor
-        #         self.falling_edges[2] == 0  # reset the falling edge
-        #         self.state = RobotState.ROW_FORWARD
 
 
     def send_stop(self):

@@ -25,6 +25,9 @@ class UltrasonicProcessingNode(Node):
         self.declare_parameter('init_slide_2_threshold', 36.0) # U1 > 36
         self.init_slide_2_threshold = self.get_parameter('init_slide_2_threshold').value
 
+        self.declare_parameter('init_slide_3_threshold', 45.0) # U1 > 36
+        self.init_slide_3_threshold = self.get_parameter('init_slide_3_threshold').value
+
         # -------------------------
         # Plant detection config
         # -------------------------
@@ -33,44 +36,44 @@ class UltrasonicProcessingNode(Node):
 
             # Sensor index, operator, between_dashes, pid_target
             1: [
-                (3, ">", 42), # 42 0
-                (3, ">", 65), # 65 1
-                (1, "<", 114), # 114 2 
-                (1, "<", 87), # 87 3
-                (1, "<", 61), # 61 4 
-                (1, "<", 36), # 36 5
+                (3, ">", 15), # 42 0 #still not to test the 15
+                (3, ">", 42), # 65 1
+                (3, ">", 65), # 114 2 
+                (1, "<", 114), # 87 3
+                (1, "<", 87), # 61 4 
+                (1, "<", 61), # 36 5
             ],
             2: [
-                (1, ">", 39), # 39
-                (1, ">", 61), # 61
-                (1, ">", 87), # 87
-                (1, ">", 113), # 113
-                (3, "<", 64), # 64
-                (3, "<", 38), # 38
+                (1, ">", 15), # 39 #still need to test the 15
+                (1, ">", 39), # 61
+                (1, ">", 61), # 87
+                (1, ">", 87), # 113
+                (1, ">", 113), # 64
+                (3, "<", 64), # 38
             ],
             3: [
-                (3, ">", 42), # 42 0
-                (3, ">", 65), # 65 1
-                (1, "<", 114), # 114 2 
-                (1, "<", 87), # 87 3
-                (1, "<", 61), # 61 4 
-                (1, "<", 36), # 36 5
+                (3, ">", 15), # 42 0 #still not to test the 15
+                (3, ">", 42), # 65 1
+                (3, ">", 65), # 114 2 
+                (1, "<", 114), # 87 3
+                (1, "<", 87), # 61 4 
+                (1, "<", 61), # 36 5
             ],
             4: [
-                (1, ">", 39), # 39
-                (1, ">", 61), # 61
-                (1, ">", 87), # 87
-                (1, ">", 113), # 113
-                (3, "<", 64), # 64
-                (3, "<", 38), # 38
+                (1, ">", 15), # 39 #still need to test the 15
+                (1, ">", 39), # 61
+                (1, ">", 61), # 87
+                (1, ">", 87), # 113
+                (1, ">", 113), # 64
+                (3, "<", 64), # 38
             ],
             5: [
-                (3, ">", 42), # 42 0
-                (3, ">", 65), # 65 1
-                (1, "<", 114), # 114 2 
-                (1, "<", 87), # 87 3
-                (1, "<", 61), # 61 4 
-                (1, "<", 36), # 36 5
+                (3, ">", 15), # 42 0 #still not to test the 15
+                (3, ">", 42), # 65 1
+                (3, ">", 65), # 114 2 
+                (1, "<", 114), # 87 3
+                (1, "<", 87), # 61 4 
+                (1, "<", 61), # 36 5
             ],
         }
 
@@ -79,7 +82,7 @@ class UltrasonicProcessingNode(Node):
         # Before row change config and end of the row config 
         # -------------------------
         self.before_row_change_config = {
-            1: (1, 19.0),
+            1: (1, 18.0),
             2: (3, 18.0),
             3: (1, 18.0),
             4: (3, 18.0),
@@ -102,17 +105,28 @@ class UltrasonicProcessingNode(Node):
         # U1 → index 0, U2 → index 1, U3 → index 2, U4 → index 3
         # -------------------------
         self.before_row_follow_config = {
-            1: (2, 39.0), # Row 2 → U3 > 54
-            2: (2, 69.0), # Row 3 → U3 > 84
-            3: (0, 94.0), # Row 4 → U1 < 86
-            4: (0, 48.0), # Row 5 → U1 < 56
-            5: (0, 10.0), # Row 6 → U1 < 26
+            1: (0, 74.0), # Row 2 → U3 > 54
+            2: (0, 115.0), # Row 3 → U3 > 84
+            3: (2, 49.0), # Row 4 → U1 < 86
+            4: (2, 8.0), # Row 5 → U1 < 56
+        }
+
+        self.side_wall_config = {
+            1: (0, 82.0),
+            2: (0, 116.0),
+            3: (2, 41.0),
+            4: (2, 3.0),
         }
         
+        # 1: U1>45 cm
+        # 2: U1>83 cm
+        # 3: U1>120 cm
+        # 4: U3<42 cm
+        # 5: U3<8 cm
         self.current_plant = 0
         self.plant_latched = False
 
-        self.between_dashes = True
+        self.between_dashes = False
 
         # -------------------------
         # State input
@@ -132,12 +146,12 @@ class UltrasonicProcessingNode(Node):
         self.side_wall_pub = self.create_publisher(
             Bool, '/side_wall_detected', 10)
         
-        # self.row_change_start_pub = self.create_publisher(
-        #     Bool, '/row_change_start_detected', 10)
+        self.row_change_start_pub = self.create_publisher(
+            Bool, '/row_change_start_detected', 10)
 
         self.init_slide_wall_1_pub = self.create_publisher(Bool, '/init_slide_wall_1_detected', 10)
         self.init_slide_wall_2_pub = self.create_publisher(Bool, '/init_slide_wall_2_detected', 10)
-        # self.init_slide_wall_3_pub = self.create_publisher(Bool, '/init_slide_wall_3_detected', 10)
+        self.init_slide_wall_3_pub = self.create_publisher(Bool, '/init_slide_wall_3_detected', 10)
 
         self.init_forward_wall_1_pub = self.create_publisher(Bool, '/init_forward_wall_1_detected', 10)
         #self.init_forward_wall_2_pub = self.create_publisher(Bool, '/init_forward_wall_2_detected', 10)
@@ -220,7 +234,7 @@ class UltrasonicProcessingNode(Node):
         elif msg.data != self.current_plant:
             self.get_logger().warn("🔄 Resetting latch and between dashes for plant change")
             self.plant_latched = False
-            self.between_dashes = True # Changed it to True without testing
+            self.between_dashes = False # Changed it to False without testing
 
         self.current_plant = msg.data
 
@@ -283,11 +297,15 @@ class UltrasonicProcessingNode(Node):
         # INIT SLIDE 2 (your U1 > 36 logic)
         det_slide_2 = distances[0] > self.init_slide_2_threshold
 
+        det_slide_3 = distances[0] > self.init_slide_3_threshold
+
 
         # Publish ALL detections always
         self.init_slide_wall_1_pub.publish(Bool(data=det_slide_1))
         # self.init_forward_wall_1_pub.publish(Bool(data=det_forward_1))
         self.init_slide_wall_2_pub.publish(Bool(data=det_slide_2))
+        self.init_slide_wall_3_pub.publish(Bool(data=det_slide_3))
+
 
 
         # -------------------------
@@ -297,8 +315,7 @@ class UltrasonicProcessingNode(Node):
         table = self.row_plants.get(self.current_row)   
 
         if table is not None and self.current_plant < len(table):
-            index = max(0, self.current_plant -1)
-            sensor, op, threshold = table[index]
+            sensor, op, threshold = table[self.current_plant] #would need to replace this in the actuation if it works
             distance = distances[sensor]
 
             if not self.plant_latched and not self.between_dashes:
@@ -343,15 +360,15 @@ class UltrasonicProcessingNode(Node):
         # BEFORE ROW FOLLOW
         # =========================
         
-        if self.current_motion_state == 4 or 18:   # SLIDE RIGHT (ROW CHANGE)
+        if self.current_motion_state == 14 or 17:   # SLIDE RIGHT (ROW CHANGE)
 
             if self.current_row in self.before_row_follow_config:
                 sensor_index, threshold = self.before_row_follow_config[self.current_row]
 
                 if sensor_index == 2:
-                    before_row_follow_detected = distances[sensor_index] > threshold
-                elif sensor_index == 0:
                     before_row_follow_detected = distances[sensor_index] < threshold
+                elif sensor_index == 0:
+                    before_row_follow_detected = distances[sensor_index] > threshold
                 else:
                     before_row_follow_detected = False
             else:
@@ -374,6 +391,7 @@ class UltrasonicProcessingNode(Node):
             )
             self.last_distance_log = current_time
 
+    
     # =========================
     # HELPERS
     # =========================

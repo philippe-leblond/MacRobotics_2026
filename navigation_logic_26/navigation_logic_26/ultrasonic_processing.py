@@ -39,7 +39,7 @@ class UltrasonicProcessingNode(Node):
         self.init_slide_threshold = self.get_parameter(
             'init_slide_threshold').value
         
-        self.declare_parameter('end_course_threshold', 4.0) # U4 <= 2.0cm to detect the wall on the left for the initial slide left in row 1
+        self.declare_parameter('end_course_threshold', 204.0) # U2 >= 2.0cm to detect the wall on the left for the initial slide left in row 1
         self.end_course_threshold = self.get_parameter(
             'end_course_threshold').value
 
@@ -62,20 +62,22 @@ class UltrasonicProcessingNode(Node):
         # -------------------------
         self.before_row_follow_config = {
             1: (0, 38.0), # Row 2 → U1 > 38
-            2: (0, 80.0), # Row 3 → U1 > 80
+            2: (0, 82.0), # Row 3 → U1 > 80
             3: (0, 114.0), # Row 4 → U1 > 90
             4: (2, 48.0), # Row 5 → U3 < 48
             5: (2, 9.0), # Row 6 → U3 < 9
         }
         
-        # self.side_wall_config = {
+        self.side_wall_config = {
 
-        #     1: (2, 45.0),  # Row 2 → U3 > 59
-        #     2: (2, 84.0),  # Row 3 → U3 > 89
-        #     3: (0, 81.0),  # Row 4 → U1 < 84
-        #     4: (0, 41.0),  # Row 5 → U1 < 54
-        #     5: (2, 201.0)   # Row 6 → U1 < 24
-        # }
+            1: (0, 45.0),  # Row 2 → U3 > 59
+            2: (0, 85.0),  # Row 3 → U3 > 89
+            3: (0, 120.0),  # Row 4 → U1 < 84
+            4: (2, 41.0),  # Row 5 → U1 < 54
+            5: (2, 3.0)   # Row 6 → U1 < 24
+        }
+
+
 
         
         # -------------------------
@@ -314,40 +316,37 @@ class UltrasonicProcessingNode(Node):
         # =========================
         # ROW CHANGE ARRIVAL
         # =========================
-        # if self.current_motion_state == 14:   # SLOW SLIDE RIGHT (ROW CHANGE)
-        #     if self.current_row in self.side_wall_config:
-        #         sensor_index, threshold = self.side_wall_config[self.current_row]
+        side_wall_detected = False
 
-        #         if sensor_index == 0:
-        #             arrival_detected = distances[sensor_index] > threshold
-        #         elif sensor_index == 2:
-        #             arrival_detected = distances[sensor_index] < threshold
-        #         else:
-        #             arrival_detected = False
+        if self.current_motion_state in (18, 14, 17):
 
-        #         sensor_name = f"U{sensor_index+1}"
+            if self.current_row in self.side_wall_config:
+                sensor_index, threshold = self.side_wall_config[self.current_row]
+                distance = distances[sensor_index]
 
-        #         if arrival_detected:
-        #             self.get_logger().info(
-        #                 f"ROW CHANGE ARRIVAL DETECTED: {sensor_name}="
-        #                 f"{distances[sensor_index]:.1f}cm (threshold {threshold}cm) "
-        #                 f"(row {self.current_row})"
-        #             )
-        #     else:
-        #         arrival_detected = False
+                if distance >= 0:
 
-        # else:
-        #     arrival_detected = False
-        
-        
-        # self.get_logger().info(
-        #     f"[ROW CHANGE ARRIVAL] value={arrival_detected} | "
-        #     f"motion={self.current_motion_state} | row={self.current_row}"
-        # )   
+                    # rows 1-2 use U3 >
+                    if self.current_row in (1, 2):
+                        side_wall_detected = distance > threshold
 
-        # self.row_change_arrival_pub.publish(Bool(data=arrival_detected))
-        # self.side_wall_pub.publish(Bool(data=arrival_detected))
+                    # rows 3-4 use U1 <
+                    elif self.current_row in (3, 4):
+                        side_wall_detected = distance < threshold
 
+                    # row 5 uses U3 <
+                    elif self.current_row == 5:
+                        side_wall_detected = distance < threshold
+
+                    if side_wall_detected:
+                        self.get_logger().info(
+                            f"SIDE WALL DETECTED: "
+                            f"U{sensor_index+1}={distance:.1f}cm "
+                            f"(threshold {threshold}) "
+                            f"(row {self.current_row})"
+                        )
+
+        self.side_wall_pub.publish(Bool(data=side_wall_detected))
 
         # =========================
         # BEFORE ROW FOLLOW
@@ -384,7 +383,7 @@ class UltrasonicProcessingNode(Node):
         # =========================
 
         if self.current_motion_state == 12: # move backward
-            end_course = distances[3] <= self.end_course_threshold # U4 <= 2cm
+            end_course = distances[2] >= self.end_course_threshold # U4 <= 2cm
             self.end_course_pub.publish(Bool(data=end_course))
 
         # self.get_logger().info(
