@@ -46,6 +46,8 @@ class StateMachineNode(Node):
         self.end_course = False
         self.mid_row5_lidar = False
         self.mid_row5_lidar_passed = False
+        self.row_change_lockout_time = 10  # seconds
+        self.last_row_change_time = time.time()
 
 
         # -------------------------
@@ -225,7 +227,12 @@ class StateMachineNode(Node):
                 self.motion_pub.publish(Int32(data=2))     # LINE FOLLOW BACKWARD
 
             #if self.row_end_detected and not self.side_wall_detected:
-            if self.before_row_change_detected:
+            row_change_unlocked = (
+                time.time() - self.last_row_change_time
+                > self.row_change_lockout_time
+            )
+
+            if self.before_row_change_detected and row_change_unlocked:
 
                 self.get_logger().info(
                     f"Before row change detected on row {self.current_row}"
@@ -333,20 +340,25 @@ class StateMachineNode(Node):
             self.line_mode_pub.publish(Int32(data=6))  # no line
 
             if self.current_row % 2 == 1:
-                self.motion_pub.publish(Int32(data=10))  # slow BCAKWARD
-                if time.time() - self.burst_start_time >= 0.6: # 0.5s
-                    self.motion_pub.publish(Int32(data=6))  # slow forward
+                self.motion_pub.publish(Int32(data=6))  
+                if time.time() - self.burst_start_time >= 0.5: # 0.5s
+                    # self.motion_pub.publish(Int32(data=6))  # before not comment out
                     self.state = RobotState.BEFORE_ROW_FOLLOW
 
             elif self.current_row == 2:
-                self.motion_pub.publish(Int32(data=5))  # slow forward
-                if time.time() - self.burst_start_time >= 1.0: # 0.5s
+                #ultrasonic mount flat L1/L4
+                # self.motion_pub.publish(Int32(data=10))
+                #ultrasonic mount flat L2/L3
+                self.motion_pub.publish(Int32(data=5))  
+                if time.time() - self.burst_start_time >= 0.5: # before 0.3
+                    # self.motion_pub.publish(Int32(data=5))  
+
                     self.state = RobotState.BEFORE_ROW_FOLLOW
 
             elif self.current_row == 4:
-                self.motion_pub.publish(Int32(data=10))  # slow forward
-                if time.time() - self.burst_start_time >= 0.8: # 0.5s
-                    self.motion_pub.publish(Int32(data=5))  # slow forward
+                self.motion_pub.publish(Int32(data=5))  # before 10
+                if time.time() - self.burst_start_time >= 0.5: # before 0.4
+                    # self.motion_pub.publish(Int32(data=5))  #before not comment out
                     self.state = RobotState.BEFORE_ROW_FOLLOW            
             
             
@@ -363,6 +375,7 @@ class StateMachineNode(Node):
                     self.falling_edges = [0,0,0,0] # reset the falling edge
                     self.current_row += 1
                     self.row_change_latched = True
+                    self.last_row_change_time = time.time()
                     self.get_logger().info(f"Reached next row {self.current_row} after row change")
                     self.state = RobotState.ROW_FOLLOW
             
@@ -376,6 +389,7 @@ class StateMachineNode(Node):
                     self.falling_edges = [0,0,0,0] # reset the falling edge
                     self.current_row += 1
                     self.row_change_latched = True
+                    self.last_row_change_time = time.time()
                     self.get_logger().info(f"Reached next row {self.current_row} after row change")
                     self.state = RobotState.ROW_FOLLOW
 

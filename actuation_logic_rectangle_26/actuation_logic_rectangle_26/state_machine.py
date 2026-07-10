@@ -261,11 +261,22 @@ class StateMachineNode(Node):
         
         # ===== INIT: BURST=====
         elif self.state == RobotState.INIT_BURST:
-            self.motion_mode_pub.publish(Int32(data=5))  # SLIDE RIGHT
+            #  # Mount utrasonic L1/L4
+            # self.motion_mode_pub.publish(Int32(data=9))  # SLIDE RIGHT 9
+            # self.line_mode_pub.publish(Int32(data=6))    # L1/L4
+
+            # if time.time() - self.burst_start_time > 0.5: # 1.0s
+            #     self.get_logger().info("Init burst complete")
+            #     self.motion_mode_pub.publish(Int32(data=5))  # SLIDE RIGHT
+            #     self.state = RobotState.INIT_BEFORE_ROW_FOLLOW
+
+            # Mount utrasonic L2/L3
+            self.motion_mode_pub.publish(Int32(data=5))  # SLIDE RIGHT 9
             self.line_mode_pub.publish(Int32(data=6))    # L1/L4
 
             if time.time() - self.burst_start_time > 1.0: # 1.0s
                 self.get_logger().info("Init burst complete")
+                # self.motion_mode_pub.publish(Int32(data=5))  # SLIDE RIGHT
                 self.state = RobotState.INIT_BEFORE_ROW_FOLLOW
 
         #==== INIT: BEFORE ROW FORWARD =====
@@ -339,6 +350,15 @@ class StateMachineNode(Node):
                     self.state = RobotState.PLANT_POSITIONING
                     
                     # self.state = RobotState.ROW_SLOW
+            
+            # NEW
+            if self.row_end and self.plant_count >=3:
+                self.get_logger().info("Enter BEFORE_ROW_CHANGE without 6 plants")
+                self.plant_count = 0
+                self.plant_index_pub.publish(Int32(data=self.plant_count))
+                self.state = RobotState.BEFORE_ROW_CHANGE
+
+
 
 
         # # ==================================================
@@ -394,14 +414,7 @@ class StateMachineNode(Node):
                     self.state = RobotState.ROW_FOLLOW
                 else:
                     self.state = RobotState.FINISH_ROW_FOLLOW
-                
-                # NEW
-                if self.row_end:
-                    self.get_logger().info("Enter BEFORE_ROW_CHANGE without 6 plants")
-                    self.plant_count = 0
-                    self.plant_index_pub.publish(Int32(data=self.plant_count))
-                    self.state = RobotState.BEFORE_ROW_CHANGE
-
+            
         # ==================================================
         # FINISH ROW
         # ==================================================
@@ -483,12 +496,19 @@ class StateMachineNode(Node):
             self.line_mode_pub.publish(Int32(data=6))  # no line
 
             if self.row % 2 == 1:
-                self.motion_mode_pub.publish(Int32(data=6))  # slow backward
+                # self.motion_mode_pub.publish(Int32(data=10))  # slow BCAKWARD
+                # if time.time() - self.burst_start_time >= 0.2: # 0.5s
+                    self.motion_mode_pub.publish(Int32(data=6))  # slow forward
+                    # self.state = RobotState.BEFORE_ROW_FOLLOW
             elif self.row % 2 == 0:
-                self.motion_mode_pub.publish(Int32(data=5))  # slow forward
+                # self.motion_mode_pub.publish(Int32(data=10))  # slow forward
+                # if time.time() - self.burst_start_time >= 0.2: # 0.5s
+                    self.motion_mode_pub.publish(Int32(data=5))  # slow forward
+                    # self.state = RobotState.BEFORE_ROW_FOLLOW  
 
-            if time.time() - self.burst_start_time > 1.0: # 0.3s
-                self.state = RobotState.BEFORE_ROW_FOLLOW
+            if time.time() - self.burst_start_time >= 0.6: # 0.5s 
+                self.state = RobotState.BEFORE_ROW_FOLLOW  
+
         
         # ==================================================
         # BEFORE ROW CHANGE 

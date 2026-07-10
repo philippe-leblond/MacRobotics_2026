@@ -232,11 +232,12 @@ class StateMachineNode(Node):
         
         # ===== INIT: BURST=====
         elif self.state == RobotState.INIT_BURST:
-            self.motion_mode_pub.publish(Int32(data=5))  # SLIDE RIGHT
+            self.motion_mode_pub.publish(Int32(data=9))  # SLIDE RIGHT
             self.line_mode_pub.publish(Int32(data=6))    # L1/L4
 
-            if time.time() - self.burst_start_time > 1.0: # 1.0s
+            if time.time() - self.burst_start_time > 0.5: # 1.0s
                 self.get_logger().info("Init burst complete")
+                self.motion_mode_pub.publish(Int32(data=5))  # SLIDE RIGHT
                 self.state = RobotState.INIT_BEFORE_ROW_FOLLOW
         
         #==== INIT: BEFORE ROW FORWARD =====
@@ -552,7 +553,7 @@ class StateMachineNode(Node):
 
             elif self.row % 2 == 0:
                 self.motion_mode_pub.publish(Int32(data=10))  # slow forward
-                if time.time() - self.burst_start_time > 0.6: # 0.3s
+                if time.time() - self.burst_start_time > 0.4: # 0.3s
                     self.motion_mode_pub.publish(Int32(data=5))  # slow forward
                     self.state = RobotState.BEFORE_ROW_FOLLOW
 

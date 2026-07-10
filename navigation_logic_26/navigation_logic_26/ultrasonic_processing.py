@@ -39,11 +39,11 @@ class UltrasonicProcessingNode(Node):
         self.init_slide_threshold = self.get_parameter(
             'init_slide_threshold').value
         
-        self.declare_parameter('end_course_threshold', 204.0) # U2 >= 2.0cm to detect the wall on the left for the initial slide left in row 1
+        self.declare_parameter('end_course_threshold', 201.0) # U2 >= 2.0cm to detect the wall on the left for the initial slide left in row 1
         self.end_course_threshold = self.get_parameter(
             'end_course_threshold').value
         
-        self.declare_parameter('mid_row5_lidar_threshold', 20.0) # U2 >= 20.0cm to detect the wall on the left for the initial slide left in row 1
+        self.declare_parameter('mid_row5_lidar_threshold', 40.0) # U2 >= 40.0cm to detect the wall on the left for the initial slide left in row 1
         self.mid_row5_lidar_threshold = self.get_parameter(
             'mid_row5_lidar_threshold').value
 
@@ -64,6 +64,7 @@ class UltrasonicProcessingNode(Node):
         # row: (sensor_index, threshold_cm)
         # U1 → index 0, U2 → index 1, U3 → index 2, U4 → index 3
         # -------------------------
+        #FLAT ULTRASONIC MOUNT L1/L4
         self.before_row_follow_config = {
             1: (0, 38.0), # Row 2 → U1 > 38
             2: (0, 82.0), # Row 3 → U1 > 80
@@ -77,9 +78,27 @@ class UltrasonicProcessingNode(Node):
             1: (0, 45.0),  # Row 2 → U3 > 59
             2: (0, 88.0),  # Row 3 → U3 > 89
             3: (0, 120.0),  # Row 4 → U1 < 84
-            4: (2, 44.0),  # Row 5 → U1 < 54
+            4: (2, 35.0),  # Row 5 → U1 < 54
             5: (2, 5.0)   # Row 6 → U1 < 24
         }
+
+        # #FLAT ULTRASONIC MOUNT L2/L3
+        # self.before_row_follow_config = {
+        #     1: (0, 38.0), # Row 2 → U1 > 38
+        #     2: (0, 71.0), # Row 3 → U1 > 80
+        #     3: (0, 113.0), # Row 4 → U1 > 90
+        #     4: (2, 53.0), # Row 5 → U3 < 48
+        #     5: (2, 12.0), # Row 6 → U3 < 9
+        # }
+        
+        # self.side_wall_config = {
+
+        #     1: (0, 42.0),  # Row 2 → U3 > 59
+        #     2: (0, 80.0),  # Row 3 → U3 > 89
+        #     3: (0, 120.0),  # Row 4 → U1 < 84
+        #     4: (2, 45.0),  # Row 5 → U1 < 54
+        #     5: (2, 6.0)   # Row 6 → U1 < 24
+        # }
 
 
 

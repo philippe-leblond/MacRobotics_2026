@@ -52,8 +52,8 @@ class UltrasonicProcessingNode(Node):
 
             (3, ">", 42), # 42 0
             (3, ">", 65), # 65 1
-            (1, "<", 114), # 114 2 
-            (1, "<", 87), # 87 3
+            (1, "<", 109), # 114 2 
+            (1, "<", 85), # 87 3
             (1, "<", 61), # 61 4 
             (1, "<", 36), # 36 5
         ]
@@ -71,6 +71,11 @@ class UltrasonicProcessingNode(Node):
         self.plant_latched = False
 
         self.between_dashes = True
+        
+        # # Dash lockout
+        # self.dash_lockout = True
+        # self.dash_lockout_start = 0.0
+        # self.dash_lockout_duration = 3.0
 
         # -------------------------
         # State input
@@ -161,8 +166,14 @@ class UltrasonicProcessingNode(Node):
     # =========================
     def plant_index_callback(self, msg):
         if msg.data != self.current_plant:
-            self.get_logger().info("Plant index changed → resetting latch")
+            self.get_logger().info(
+                "Plant index changed → resetting latch and starting dash lockout"
+            )
+
             self.plant_latched = False
+
+            # self.dash_lockout = True
+            # self.dash_lockout_start = time.monotonic()
 
         self.current_plant = msg.data
 
@@ -198,6 +209,12 @@ class UltrasonicProcessingNode(Node):
             )
             self._last_plant_log_time = now
 
+        # now = time.monotonic()
+
+        # if self.dash_lockout:
+        #     if now - self.dash_lockout_start >= self.dash_lockout_duration:
+        #         self.dash_lockout = False
+        #         self.get_logger().info("Dash lockout expired")
 
         # Pass-through
         self.filtered_pub.publish(Float32MultiArray(data=distances))
@@ -249,11 +266,15 @@ class UltrasonicProcessingNode(Node):
             table = None  # invalid combination → do nothing
 
         if table is not None and self.current_plant < len(table):
-            index = max(0, self.current_plant - 1)
-            sensor, op, threshold = table[index]
+            # index = max(0, self.current_plant - 1)
+            sensor, op, threshold = table[self.current_plant]
             distance = distances[sensor]
 
-            if not self.plant_latched and not self.between_dashes:
+            if (
+                    not self.plant_latched
+                    and not self.between_dashes
+                    # and not self.dash_lockout
+                ):
                 if op == ">" and distance > threshold:
                     self.between_dashes = True
                 elif op == "<" and distance < threshold:
@@ -275,12 +296,21 @@ class UltrasonicProcessingNode(Node):
         # Before row follow detection
         # -------------------------
         before_row_follow_detected = False
-
+        
+        # ULTRASONIC SENSOR MOUNT ON L1/L4
+        # if self.current_row % 2 == 1:
+        #     before_row_follow_detected = distances[0] >= 71.0  # U1
+        #     # self.get_logger().info("ultrasonic before row follow odd row")
+        # elif self.current_row % 2 == 0:
+        #     before_row_follow_detected = distances[0] <= 55.0  # U1
+        #     # self.get_logger().info("ultrasonic before row follow even row")
+        
+        # ULTRASONIC SENSOR MOUNT ON L2/L3
         if self.current_row % 2 == 1:
-            before_row_follow_detected = distances[0] >= 71.0  # U1
+            before_row_follow_detected = distances[0] >= 75.0  # U1
             # self.get_logger().info("ultrasonic before row follow odd row")
         elif self.current_row % 2 == 0:
-            before_row_follow_detected = distances[0] <= 55.0  # U1
+            before_row_follow_detected = distances[0] <= 49.0  # U1
             # self.get_logger().info("ultrasonic before row follow even row")
 
         self.before_row_follow_pub.publish(
@@ -292,13 +322,21 @@ class UltrasonicProcessingNode(Node):
         # -------------------------
         arrival_detected = False
 
+        # ULTRASONIC SENSOR MOUNT ON L1/L4
+        # if self.current_row % 2 == 1:
+        #     arrival_detected = distances[0] >= 76.0  # U1 # NEED TO MEASURE
+        # elif self.current_row % 2 == 0:
+        #     arrival_detected = distances[0] <= 50.0  # U1 # NEED TO MEASURE
+
+        # ULTRASONIC SENSOR MOUNT ON L2/L3
         if self.current_row % 2 == 1:
-            arrival_detected = distances[0] >= 76.0  # U1 # NEED TO MEASURE
+            arrival_detected = distances[0] >= 80.0  # U1 # NEED TO MEASURE
         elif self.current_row % 2 == 0:
-            arrival_detected = distances[0] <= 50.0  # U1 # NEED TO MEASURE
+            arrival_detected = distances[0] <= 53.0  # U1 # NEED TO MEASURE
 
         self.row_change_arrival_pub.publish(Bool(data=arrival_detected))
         self.side_wall_pub.publish(Bool(data=arrival_detected))
+
 
 
 def main():

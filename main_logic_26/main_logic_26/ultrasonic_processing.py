@@ -28,7 +28,7 @@ class UltrasonicProcessingNode(Node):
         self.declare_parameter('init_slide_3_threshold', 45.0) # U1 > 36
         self.init_slide_3_threshold = self.get_parameter('init_slide_3_threshold').value
 
-        self.declare_parameter('mid_row5_lidar_threshold', 20.0) # U3 <= 20.0cm to detect the wall on the left for the initial slide left in row 1
+        self.declare_parameter('mid_row5_lidar_threshold', 40.0) # U3 <= 40.0cm to detect the wall on the left for the initial slide left in row 1
         self.mid_row5_lidar_threshold = self.get_parameter(
             'mid_row5_lidar_threshold').value
 
@@ -118,7 +118,7 @@ class UltrasonicProcessingNode(Node):
         self.side_wall_config = {
             1: (0, 82.0),
             2: (0, 122.0),
-            3: (2, 41.0),
+            3: (2, 35.0),
             4: (2, 3.0),
         }
         
@@ -131,6 +131,11 @@ class UltrasonicProcessingNode(Node):
         self.plant_latched = False
 
         self.between_dashes = False
+
+        # # Dash lockout
+        # self.dash_lockout = False
+        # self.dash_lockout_start = 0.0
+        # self.dash_lockout_duration = 1.0
 
         # -------------------------
         # State input
@@ -240,8 +245,10 @@ class UltrasonicProcessingNode(Node):
         elif msg.data != self.current_plant:
             self.get_logger().warn("🔄 Resetting latch and between dashes for plant change")
             self.plant_latched = False
-            self.between_dashes = False # Changed it to False without testing
+            # self.between_dashes = False
 
+            # self.dash_lockout = True
+            # self.dash_lockout_start = time.monotonic()
         self.current_plant = msg.data
 
     def row_index_callback(self, msg):
@@ -273,6 +280,14 @@ class UltrasonicProcessingNode(Node):
                 f"between_dashes={self.between_dashes}"
             )
             self._last_plant_log_time = now
+
+        # now = time.monotonic()
+
+        # if self.dash_lockout:
+        #     if now - self.dash_lockout_start >= self.dash_lockout_duration:
+        #         self.dash_lockout = False
+        #         self.get_logger().info("Dash lockout expired")
+
 
 
         # Pass-through
@@ -324,7 +339,11 @@ class UltrasonicProcessingNode(Node):
             sensor, op, threshold = table[self.current_plant] #would need to replace this in the actuation if it works
             distance = distances[sensor]
 
-            if not self.plant_latched and not self.between_dashes:
+            if (
+                    not self.plant_latched
+                    and not self.between_dashes
+                    # and not self.dash_lockout
+                ):
                 if op == ">" and distance > threshold:
                     self.between_dashes = True
                 if op == "<" and distance < threshold:
