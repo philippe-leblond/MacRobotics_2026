@@ -92,6 +92,8 @@ cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 # Fixed white balance
 cap.set(cv2.CAP_PROP_AUTO_WB, 0)
 cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 3000)
+cap.set(cv2.CAP_PROP_AUTOFOCUS, 0) 
+cap.set(cv2.CAP_PROP_FOCUS, 300) #need to test the focus
 
 # Allow camera to settle
 time.sleep(2)

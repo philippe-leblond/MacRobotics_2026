@@ -49,6 +49,7 @@ class MotionControllerNode(Node):
         self.line_direction = 0 # coming from the line processing node, -1 for left, 0 for straight, +1 for right
         self.side_wall_detected = False # just for debuggin purposes 
         self.plant_pid_output = 0.0 # coming from the ultrasonic processing node, this is the output of the PID controller that tries to keep the robot at a certain distance from the plant
+        self.plant_pid_output_camera = 0.0 # coming from the allignment camera node, this is the output of the PID controller that tries to keep the robot centered on the plant
 
         self.last_command = ""
 
@@ -61,7 +62,8 @@ class MotionControllerNode(Node):
         self.create_subscription(
             Int32, '/line_direction', self.line_dir_cb, 10)
 
-        self.create_subscription(Float32, '/plant_pid_output', self.plant_pid_cb, 10)
+        #self.create_subscription(Float32, '/plant_pid_output', self.plant_pid_cb, 10)
+        self.create_subscription(Float32, '/plant_pid_output_camera', self.plant_pid_camera_cb, 10)
         # -------------------------
         # Control loop
         # -------------------------
@@ -87,7 +89,8 @@ class MotionControllerNode(Node):
                 8: "MOVERIGHTODDROW", 9: "TURN_LEFT", 10: "TURN_RIGHT", 
                 11: "SLOW_ROW_FORWARD", 12: "SLOW_ROW_BACKWARD", 13: "SLOW_SLIDE_LEFT",
                 14: "SLOW_SLIDE_RIGHT", 15: "PID_CONTROL", 16: "MOVERIGHTEVENROW",
-                17: "MOVERIGHTEVENROW_SLOW", 18: "LINE_FOLLOW_SLIDE_RIGHT_EVEN_ROW"
+                17: "MOVERIGHTEVENROW_SLOW", 18: "LINE_FOLLOW_SLIDE_RIGHT_EVEN_ROW",
+                19: "DIAGONALUPRIGHT"
             }
             mode_name = mode_names.get(self.motion_mode, f"UNKNOWN({self.motion_mode})")
             self.get_logger().info(f"Motion mode changed: {old_mode} → {self.motion_mode} ({mode_name})")
@@ -110,6 +113,10 @@ class MotionControllerNode(Node):
     def plant_pid_cb(self, msg):
         self.plant_pid_output = msg.data
         self.get_logger().info(f"Plant PID output updated: {self.plant_pid_output}")
+
+    def plant_pid_camera_cb(self, msg):
+        self.plant_pid_output_camera = msg.data
+        self.get_logger().info(f"Plant PID output camera updated: {self.plant_pid_output_camera}")
 
     # =========================
     # Main control logic
@@ -201,18 +208,23 @@ class MotionControllerNode(Node):
         # ---- PID CONTROL ----
         elif self.motion_mode == 15:
 
-            speed = 100 + int(abs(self.plant_pid_output) * 255) # Convert to PWM
+            # self.plant_pid_output_camera = 0.0
+
+            speed = 100 + int(abs(self.plant_pid_output_camera) * 255) # Convert to PWM
 
             speed = int(max(100, min(180, speed))) # the 100 is added because the motors don't move before PWM 100 # Clamp between 100 and 180
 
-            if self.plant_pid_output > 0:
+            if self.plant_pid_output_camera < 0:
                 cmd = f"<FORWARD:{speed}>"
+                self.get_logger().info(f"PID Control: Moving Forward with speed {speed} due to plant_pid_output_camera {self.plant_pid_output_camera}")
 
-            elif self.plant_pid_output < 0:
+            elif self.plant_pid_output_camera > 0:
                 cmd = f"<BACKWARD:{speed}>"
+                self.get_logger().info(f"PID Control: Moving Backward with speed {speed} due to plant_pid_output_camera {self.plant_pid_output_camera}")
 
             else:
                 cmd = "<STOP>"
+                self.get_logger().info(f"PID Control: Stopping due to plant_pid_output_camera {self.plant_pid_output_camera}")
 
         # ---- MOVE RIGHT EVEN ROW ----
         elif self.motion_mode == 16:
@@ -230,6 +242,10 @@ class MotionControllerNode(Node):
                 cmd = f"<CURVECCWMOVERIGHT:{self.turn_speed}>" #L2
             else:
                 cmd = f"<CURVECWMOVERIGHT:{self.turn_speed}>" #L3
+        
+        elif self.motion_mode == 19:
+            cmd = f"<DIAGONALUPRIGHT:{self.turn_speed}>"
+
             
         # ---- Send only if changed ----
         if cmd and cmd != self.last_command:
@@ -254,7 +270,7 @@ class MotionControllerNode(Node):
                 8: "SLIDE_RIGHT", 9: "TURN_LEFT", 10: "TURN_RIGHT",
                 11: "SLOW_ROW_FORWARD", 12: "SLOW_ROW_BACKWARD", 13: "SLOW_SLIDE_LEFT",
                 14: "SLOW_SLIDE_RIGHT", 15: "PID_CONTROL", 16: "MOVERIGHTEVENROW", 17: "MOVERIGHTEVENROW_SLOW",
-                18: "LINE_FOLLOW_SLIDE_RIGHT_EVEN_ROW"
+                18: "LINE_FOLLOW_SLIDE_RIGHT_EVEN_ROW", 19: "DIAGONALUPRIGHT"
             }
             mode_name = mode_names.get(self.motion_mode, f"UNKNOWN({self.motion_mode})")
             dir_names = {-1: "LEFT", 0: "STRAIGHT", 1: "RIGHT"}

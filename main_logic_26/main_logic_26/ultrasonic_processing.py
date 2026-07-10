@@ -19,7 +19,7 @@ class UltrasonicProcessingNode(Node):
         # Parameters
         # -------------------------
         
-        self.declare_parameter('init_slide_1_threshold', 203.0) # u3 < 203
+        self.declare_parameter('init_slide_1_threshold', 7.0) # u1 > 7
         self.init_slide_1_threshold = self.get_parameter('init_slide_1_threshold').value
 
         self.declare_parameter('init_slide_2_threshold', 36.0) # U1 > 36
@@ -28,13 +28,17 @@ class UltrasonicProcessingNode(Node):
         self.declare_parameter('init_slide_3_threshold', 45.0) # U1 > 36
         self.init_slide_3_threshold = self.get_parameter('init_slide_3_threshold').value
 
+        self.declare_parameter('mid_row5_lidar_threshold', 20.0) # U3 <= 20.0cm to detect the wall on the left for the initial slide left in row 1
+        self.mid_row5_lidar_threshold = self.get_parameter(
+            'mid_row5_lidar_threshold').value
+
         # -------------------------
         # Plant detection config
         # -------------------------
 
         self.row_plants = {
 
-            # Sensor index, operator, between_dashes, pid_target
+            # Sensor index, operator, between_dashes
             1: [
                 (3, ">", 15), # 42 0 #still not to test the 15
                 (3, ">", 42), # 65 1
@@ -108,12 +112,12 @@ class UltrasonicProcessingNode(Node):
             1: (0, 74.0), # Row 2 → U3 > 54
             2: (0, 115.0), # Row 3 → U3 > 84
             3: (2, 49.0), # Row 4 → U1 < 86
-            4: (2, 8.0), # Row 5 → U1 < 56
+            4: (2, 9.0), # Row 5 → U1 < 56
         }
 
         self.side_wall_config = {
             1: (0, 82.0),
-            2: (0, 116.0),
+            2: (0, 122.0),
             3: (2, 41.0),
             4: (2, 3.0),
         }
@@ -184,6 +188,8 @@ class UltrasonicProcessingNode(Node):
         self.plant_position_reached_pub = self.create_publisher(
             Bool,'/plant_position_reached', 10)
 
+        self.mid_row5_lidar_pub = self.create_publisher(
+            Bool, '/mid_row5_lidar', 10)
         # -------------------------
         # Subscriptions
         # -------------------------
@@ -289,7 +295,7 @@ class UltrasonicProcessingNode(Node):
         # Init detection
         # -------------------------
         # INIT SLIDE 1 (wall detection)
-        det_slide_1 = distances[2] < self.init_slide_1_threshold
+        det_slide_1 = distances[0] > self.init_slide_1_threshold
 
         # INIT FORWARD
         # det_forward_1 = distances[3] > self.init_forward_1_threshold
@@ -360,7 +366,7 @@ class UltrasonicProcessingNode(Node):
         # BEFORE ROW FOLLOW
         # =========================
         
-        if self.current_motion_state == 14 or 17:   # SLIDE RIGHT (ROW CHANGE)
+        if self.current_motion_state in (4, 18):   # SLIDE RIGHT (ROW CHANGE)
 
             if self.current_row in self.before_row_follow_config:
                 sensor_index, threshold = self.before_row_follow_config[self.current_row]
@@ -380,7 +386,48 @@ class UltrasonicProcessingNode(Node):
         self.before_row_follow_pub.publish(Bool(data=before_row_follow_detected))
         self.row_change_start_pub.publish(Bool(data=False))
 
+        # =========================
+        # ROW CHANGE ARRIVAL
+        # =========================
+        side_wall_detected = False
 
+        if self.current_motion_state in (18, 14, 17):
+
+            if self.current_row in self.side_wall_config:
+                sensor_index, threshold = self.side_wall_config[self.current_row]
+                distance = distances[sensor_index]
+
+                if distance >= 0:
+
+                    # rows 1-2 use U3 >
+                    if self.current_row in (1, 2):
+                        side_wall_detected = distance > threshold
+
+                    # rows 3-4 use U1 <
+                    elif self.current_row in (3, 4):
+                        side_wall_detected = distance < threshold
+
+                    if side_wall_detected:
+                        self.get_logger().info(
+                            f"SIDE WALL DETECTED: "
+                            f"U{sensor_index+1}={distance:.1f}cm "
+                            f"(threshold {threshold}) "
+                            f"(row {self.current_row})"
+                        )
+
+        self.side_wall_pub.publish(Bool(data=side_wall_detected))
+
+
+        # =========================
+        # MID ROW5 LIDAR
+        # =========================
+
+        if self.current_motion_state in (4, 18): # move right 
+            mid_row5_lidar = distances[3] <= self.mid_row5_lidar_threshold # U4 <= 20cm
+            self.mid_row5_lidar_pub.publish(Bool(data=mid_row5_lidar))
+
+        
+        
         # Log current distances periodically (every ~5 seconds to avoid spam)
         current_time = time.time()
         if not hasattr(self, 'last_distance_log') or current_time - self.last_distance_log > 5.0:

@@ -37,7 +37,7 @@ setup(
             'state_machine = main_logic_26.state_machine:main',
             'camera_processing = main_logic_26.camera_processing:main',
             'led_processing = main_logic_26.led_processing:main',
-            'display_processing = main_logic_26.display_processing:main',
+            'display = main_logic_26.display:main',
             'alignment_camera = main_logic_26.alignment_camera:main',
         ],
     },

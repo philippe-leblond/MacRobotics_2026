@@ -89,7 +89,8 @@ class MotionControllerNode(Node):
                 8: "MOVERIGHTODDROW", 9: "TURN_LEFT", 10: "TURN_RIGHT", 
                 11: "SLOW_ROW_FORWARD", 12: "SLOW_ROW_BACKWARD", 13: "SLOW_SLIDE_LEFT",
                 14: "SLOW_SLIDE_RIGHT", 15: "PID_CONTROL", 16: "MOVERIGHTEVENROW",
-                17: "MOVERIGHTEVENROW_SLOW", 18: "LINE_FOLLOW_SLIDE_RIGHT_EVEN_ROW"
+                17: "MOVERIGHTEVENROW_SLOW", 18: "LINE_FOLLOW_SLIDE_RIGHT_EVEN_ROW",
+                19: "DIAGONALUPRIGHT"
             }
             mode_name = mode_names.get(self.motion_mode, f"UNKNOWN({self.motion_mode})")
             self.get_logger().info(f"Motion mode changed: {old_mode} → {self.motion_mode} ({mode_name})")
@@ -241,6 +242,10 @@ class MotionControllerNode(Node):
                 cmd = f"<CURVECCWMOVERIGHT:{self.turn_speed}>" #L2
             else:
                 cmd = f"<CURVECWMOVERIGHT:{self.turn_speed}>" #L3
+        
+        elif self.motion_mode == 19:
+            cmd = f"<DIAGONALUPRIGHT:{self.turn_speed}>"
+
             
         # ---- Send only if changed ----
         if cmd and cmd != self.last_command:
@@ -265,7 +270,7 @@ class MotionControllerNode(Node):
                 8: "SLIDE_RIGHT", 9: "TURN_LEFT", 10: "TURN_RIGHT",
                 11: "SLOW_ROW_FORWARD", 12: "SLOW_ROW_BACKWARD", 13: "SLOW_SLIDE_LEFT",
                 14: "SLOW_SLIDE_RIGHT", 15: "PID_CONTROL", 16: "MOVERIGHTEVENROW", 17: "MOVERIGHTEVENROW_SLOW",
-                18: "LINE_FOLLOW_SLIDE_RIGHT_EVEN_ROW"
+                18: "LINE_FOLLOW_SLIDE_RIGHT_EVEN_ROW", 19: "DIAGONALUPRIGHT"
             }
             mode_name = mode_names.get(self.motion_mode, f"UNKNOWN({self.motion_mode})")
             dir_names = {-1: "LEFT", 0: "STRAIGHT", 1: "RIGHT"}

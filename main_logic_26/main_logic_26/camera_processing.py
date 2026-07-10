@@ -14,7 +14,7 @@ CAMERA_INDEX = "/dev/v4l/by-id/usb-XZC-260109-A_Streaming_Webcam_Audio_01.00.00-
 FRAME_RATE = 5
 
 MIN_AREA = 2500
-HEIGHT_THRESHOLD = 150
+HEIGHT_THRESHOLD = 125
 
 
 # -----------------------------
@@ -111,6 +111,9 @@ class CameraProcessingNode(Node):
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             cap.set(cv2.CAP_PROP_AUTO_WB, 0)
             cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 3000)
+            cap.set(cv2.CAP_PROP_AUTOFOCUS, 0) 
+            cap.set(cv2.CAP_PROP_FOCUS, 300)
+
 
             if not cap.isOpened():
                 self.get_logger().warn("Failed to open camera")

@@ -42,6 +42,10 @@ class UltrasonicProcessingNode(Node):
         self.declare_parameter('end_course_threshold', 204.0) # U2 >= 2.0cm to detect the wall on the left for the initial slide left in row 1
         self.end_course_threshold = self.get_parameter(
             'end_course_threshold').value
+        
+        self.declare_parameter('mid_row5_lidar_threshold', 20.0) # U2 >= 20.0cm to detect the wall on the left for the initial slide left in row 1
+        self.mid_row5_lidar_threshold = self.get_parameter(
+            'mid_row5_lidar_threshold').value
 
         # self.declare_parameter('init_forward_threshold', 12.0) # U4 > 12.0cm to detect the wall in front of the robot for the initial forward in row 1
         # self.init_forward_threshold = self.get_parameter(
@@ -65,16 +69,16 @@ class UltrasonicProcessingNode(Node):
             2: (0, 82.0), # Row 3 → U1 > 80
             3: (0, 114.0), # Row 4 → U1 > 90
             4: (2, 48.0), # Row 5 → U3 < 48
-            5: (2, 9.0), # Row 6 → U3 < 9
+            5: (2, 10.0), # Row 6 → U3 < 9
         }
         
         self.side_wall_config = {
 
             1: (0, 45.0),  # Row 2 → U3 > 59
-            2: (0, 85.0),  # Row 3 → U3 > 89
+            2: (0, 88.0),  # Row 3 → U3 > 89
             3: (0, 120.0),  # Row 4 → U1 < 84
-            4: (2, 41.0),  # Row 5 → U1 < 54
-            5: (2, 3.0)   # Row 6 → U1 < 24
+            4: (2, 44.0),  # Row 5 → U1 < 54
+            5: (2, 5.0)   # Row 6 → U1 < 24
         }
 
 
@@ -122,6 +126,9 @@ class UltrasonicProcessingNode(Node):
         
         self.end_course_pub = self.create_publisher(
             Bool, '/end_course_detected', 10)
+        
+        self.mid_row5_lidar_pub = self.create_publisher(
+            Bool, '/mid_row5_lidar', 10)
 
         # -------------------------
         # Subscriptions
@@ -352,7 +359,7 @@ class UltrasonicProcessingNode(Node):
         # BEFORE ROW FOLLOW
         # =========================
         
-        if self.current_motion_state == 4 or 18:   # SLIDE RIGHT (ROW CHANGE)
+        if self.current_motion_state in (0, 4, 18):   # SLIDE RIGHT (ROW CHANGE)
 
             if self.current_row in self.before_row_follow_config:
                 sensor_index, threshold = self.before_row_follow_config[self.current_row]
@@ -377,6 +384,14 @@ class UltrasonicProcessingNode(Node):
 
         else:
             before_row_follow_detected = False
+
+        # =========================
+        # MID ROW5 LIDAR
+        # =========================
+
+        if self.current_motion_state in (4, 18): # move right 
+            mid_row5_lidar = distances[1] <= self.mid_row5_lidar_threshold # U2 <= 20cm
+            self.mid_row5_lidar_pub.publish(Bool(data=mid_row5_lidar))
         
         # =========================
         # FINALIZE END COURSE DETECTION

@@ -13,8 +13,8 @@ from ament_index_python.packages import get_package_share_directory
 CAMERA_INDEX = "/dev/v4l/by-id/usb-XZC-260109-A_Streaming_Webcam_Audio_01.00.00-video-index0"
 FRAME_RATE = 5
 
-MIN_AREA = 3000 # from 5000 to 3000
-HEIGHT_THRESHOLD = 125 # from 150 to 125
+MIN_AREA = 2500 # from 5000 to 3000
+HEIGHT_THRESHOLD = 150 # from 150 to 125
 SHOW_PREVIEW = True
 
 
@@ -101,7 +101,9 @@ class CameraProcessingNode(Node):
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             cap.set(cv2.CAP_PROP_AUTO_WB, 0) # Turn OFF auto white balance
             cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 3000) # Manually set white balance (tune this!)
-
+            cap.set(cv2.CAP_PROP_AUTOFOCUS, 0) 
+            cap.set(cv2.CAP_PROP_FOCUS, 300)
+            
             if not cap.isOpened():
                 self.get_logger().warn("Failed to open camera")
                 return None

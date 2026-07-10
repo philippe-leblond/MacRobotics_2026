@@ -19,7 +19,7 @@ class UltrasonicProcessingNode(Node):
         self.row_end_threshold = self.get_parameter(
             'row_end_threshold_cm').value
         
-        self.declare_parameter('init_slide_1_threshold', 198.0) # u3 < 198
+        self.declare_parameter('init_slide_1_threshold', 12.0) # u1 > 1
         self.init_slide_1_threshold = self.get_parameter('init_slide_1_threshold').value
 
         self.declare_parameter('init_slide_2_threshold', 36.0) # U1 > 36
@@ -219,7 +219,7 @@ class UltrasonicProcessingNode(Node):
         # -------------------------
 
         # INIT SLIDE 1 (wall detection)
-        det_slide_1 = distances[2] < self.init_slide_1_threshold
+        det_slide_1 = distances[0] > self.init_slide_1_threshold
 
         # INIT FORWARD
         # det_forward_1 = distances[3] > self.init_forward_1_threshold

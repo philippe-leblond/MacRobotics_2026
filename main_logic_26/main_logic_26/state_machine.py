@@ -11,18 +11,20 @@ class RobotState(Enum):
     INIT_SLIDE_LEFT = 0 # can add more state for initialization if needed
     INIT_FORWARD_1 = 1
     INIT_CHANGE_ROW = 2
-    INIT_BEFORE_ROW_FOLLOW = 3
-    ROW_FOLLOW = 4
-    ROW_SLOW = 5
-    PLANT_DETECTED = 6
-    PLANT_POSITIONING = 7
-    PLANT_ACT = 8
-    WAIT = 9
-    FINISH_ROW = 10
-    BEFORE_ROW_CHANGE = 11
-    ROW_CHANGE = 12
-    BEFORE_ROW_FOLLOW = 13
-    FINISH = 14
+    INIT_BURST = 3
+    INIT_BEFORE_ROW_FOLLOW = 4
+    ROW_FOLLOW = 5
+    ROW_SLOW = 6
+    PLANT_DETECTED = 7
+    PLANT_POSITIONING = 8
+    PLANT_ACT = 9
+    WAIT = 10
+    FINISH_ROW = 11
+    BEFORE_ROW_CHANGE = 12
+    ROW_CHANGE = 13
+    BURST = 14
+    BEFORE_ROW_FOLLOW = 15
+    FINISH = 16
 
 
 class StateMachineNode(Node):
@@ -66,11 +68,11 @@ class StateMachineNode(Node):
         self.create_subscription(Int32, '/camera_choice', self.camera_choice_cb, 10) # NEED TO CREATE IN THE FUTUR CAMERA NODE
         self.create_subscription(Bool, '/before_row_change_detected', self.before_row_change_cb, 10)
         self.create_subscription(Bool, '/before_row_follow_detected', self.before_row_follow_cb, 10)
-        self.create_subscription(Bool, '/row_change_arrival_detected', self.row_change_arrival_cb, 10) 
+        self.create_subscription(Bool, '/side_wall_detected', self.side_wall_detected_cb, 10) 
         self.create_subscription(Int32MultiArray, '/line_falling_edges', self.falling_edges_cb, 10)
         # self.create_subscription(Bool, '/plant_position_reached', self.plant_position_cb, 10)
         self.create_subscription(Bool, '/plant_position_reached_camera', self.plant_position_camera_cb, 10)
-
+        self.create_subscription(Bool, '/mid_row5_lidar', self.mid_row5_lidar_cb, 10)
 
 
         # ---------- Internal state ----------
@@ -96,12 +98,14 @@ class StateMachineNode(Node):
         self.camera_request_sent = False
         self.before_row_change_detected = False
         self.before_row_follow_detected = False
-        self.row_change_arrival_detected = False
+        self.side_wall_detected = False
         self.row_change_latched = False
         self.end_course_detected = False
         self.max_rows = 5 # when five it's time to go in the finish and the thresold it >=5
         self.falling_edges = [0,0,0,0]
-        self.init_start_time = 0.0
+        # self.init_start_time = 0.0
+        self.burst_start_time = 0.0
+        self.mid_row5_lidar_passed = False
 
         self.timer = self.create_timer(0.1, self.step)
 
@@ -141,8 +145,8 @@ class StateMachineNode(Node):
     def before_row_follow_cb(self, msg):
         self.before_row_follow_detected = msg.data
     
-    def row_change_arrival_cb(self, msg):
-        self.row_change_arrival_detected = msg.data
+    def side_wall_detected_cb(self, msg):
+        self.side_wall_detected = msg.data
 
     def falling_edges_cb(self, msg):
         self.falling_edges = msg.data
@@ -152,6 +156,9 @@ class StateMachineNode(Node):
     
     def plant_position_camera_cb(self, msg):
         self.plant_aligned_camera = msg.data
+
+    def mid_row5_lidar_cb(self, msg):
+        self.mid_row5_lidar = msg.data
 
     # ---------- Main logic ----------
     def step(self):
@@ -189,12 +196,12 @@ class StateMachineNode(Node):
 
         # ===== INIT: SLIDE LEFT =====
         if self.state == RobotState.INIT_SLIDE_LEFT:
-            if current_time - self.init_start_time < 2.0: # 1 seconds timeout for initialization
-                self.motion_pub.publish(Int32(data=0))  # STOP
-              # Short delay to read well the ultrasonic sesnsors at the beginning
-            else:
-                self.line_mode_pub.publish(Int32(data=6))   # NO LINE DETECTION
-                self.motion_mode_pub.publish(Int32(data=8))      # SLOW SLIDE RIGHT 
+            # if current_time - self.init_start_time < 2.0: # 1 seconds timeout for initialization
+            #     self.motion_pub.publish(Int32(data=0))  # STOP
+            #   # Short delay to read well the ultrasonic sesnsors at the beginning
+            # else:
+            self.line_mode_pub.publish(Int32(data=6))   # NO LINE DETECTION
+            self.motion_mode_pub.publish(Int32(data=8))      # SLOW SLIDE RIGHT 
 
             if self.init_slide_wall_1_detected:
                 self.get_logger().info("Init slide 1 complete")
@@ -220,6 +227,16 @@ class StateMachineNode(Node):
 
             if self.init_slide_wall_2_detected: #NEED TO ADD BEFORE ROW FOLLOW DETECTION
                 self.get_logger().info("Init row change complete")
+                self.burst_start_time = time.time()                     
+                self.state = RobotState.INIT_BURST
+        
+        # ===== INIT: BURST=====
+        elif self.state == RobotState.INIT_BURST:
+            self.motion_mode_pub.publish(Int32(data=5))  # SLIDE RIGHT
+            self.line_mode_pub.publish(Int32(data=6))    # L1/L4
+
+            if time.time() - self.burst_start_time > 1.0: # 1.0s
+                self.get_logger().info("Init burst complete")
                 self.state = RobotState.INIT_BEFORE_ROW_FOLLOW
         
         #==== INIT: BEFORE ROW FORWARD =====
@@ -483,17 +500,62 @@ class StateMachineNode(Node):
                 self.motion_mode_pub.publish(Int32(data=4)) # RIGHT ROW CHANGE
                 self.line_mode_pub.publish(Int32(data=5)) # SLIDE RIGHT
 
-                if self.before_row_follow_detected:  # reuse a valid sensor
-                    self.get_logger().info("Row change complete odd")
-                    self.state = RobotState.BEFORE_ROW_FOLLOW
+                if self.row == 3:
+                    self.get_logger().info("Row 3 change")
+                                        
+                    if self.mid_row5_lidar:
+                        self.get_logger().info("Mid row3 passes with lidar")
+                        self.mid_row5_lidar_passed = True
+
+                    if self.before_row_follow_detected and self.mid_row5_lidar_passed:  # reuse a valid sensor
+                        self.mid_row5_lidar_passed = False
+                        self.burst_start_time = time.time()
+                        self.get_logger().info("Row change complete even")
+                        self.state = RobotState.BURST
+                
+                else:
+                    if self.before_row_follow_detected:  # reuse a valid sensor
+                        self.burst_start_time = time.time()
+                        self.get_logger().info("Row change complete even")
+                        self.state = RobotState.BURST
             
             elif self.row % 2 == 0: # EVEN
                 self.motion_mode_pub.publish(Int32(data=18)) # RIGHT ROW CHANGE
                 self.line_mode_pub.publish(Int32(data=5)) # SLIDE RIGHT
 
                 if self.before_row_follow_detected:  # reuse a valid sensor
-                    self.get_logger().info("Row change complete even")
+                    self.burst_start_time = time.time()
+                    self.get_logger().info("Row change complete odd")
+                    self.state = RobotState.BURST
+                    
+        # ==================================================
+        # BURST
+        # ==================================================
+        elif self.state == RobotState.BURST:
+
+            self.line_mode_pub.publish(Int32(data=6))  # no line
+
+            if self.row == 1:
+                self.motion_mode_pub.publish(Int32(data=6))  # slow backward
+                if time.time() - self.burst_start_time > 1.0: # 0.3s
                     self.state = RobotState.BEFORE_ROW_FOLLOW
+            
+            elif self.row == 3:
+                self.motion_mode_pub.publish(Int32(data=6))  # slow backward
+                if time.time() - self.burst_start_time > 1.0: # 0.3s
+                    self.state = RobotState.BEFORE_ROW_FOLLOW
+
+            elif self.row == 5:
+                self.motion_mode_pub.publish(Int32(data=6))  # slow backward
+                if time.time() - self.burst_start_time > 1.0: # 0.3s
+                    self.state = RobotState.BEFORE_ROW_FOLLOW
+
+            elif self.row % 2 == 0:
+                self.motion_mode_pub.publish(Int32(data=10))  # slow forward
+                if time.time() - self.burst_start_time > 0.6: # 0.3s
+                    self.motion_mode_pub.publish(Int32(data=5))  # slow forward
+                    self.state = RobotState.BEFORE_ROW_FOLLOW
+
         
         # ==================================================
         # BEFORE ROW CHANGE 
@@ -505,7 +567,7 @@ class StateMachineNode(Node):
                 self.motion_mode_pub.publish(Int32(data=14))     # MOVE RIGHT 
                 if (
                         self.falling_edges[2] == 1
-                        or self.row_change_arrival_detected
+                        or self.side_wall_detected
                     ) and not self.row_change_latched:  # Assuming L3 is the sensor
                     self.falling_edges = [0,0,0,0] # reset the falling edge
                     self.row += 1
@@ -518,7 +580,7 @@ class StateMachineNode(Node):
                 self.motion_mode_pub.publish(Int32(data=17))     # MOVE RIGHT 
                 if (
                         self.falling_edges[1] == 1
-                        or self.row_change_arrival_detected
+                        or self.side_wall_detected
                     ) and not self.row_change_latched:  # Assuming L2 is the sensor
                     self.falling_edges = [0,0,0,0] # reset the falling edge
                     self.row += 1

@@ -11,17 +11,19 @@ class RobotState(Enum):
     INIT_SLIDE_LEFT = 0 # can add more state for initialization if needed
     INIT_FORWARD_1 = 1
     INIT_CHANGE_ROW = 2
-    INIT_BEFORE_ROW_FOLLOW = 3
-    ROW_FOLLOW  = 4
-    ROW_FOLLOW_SLOW = 5
-    PLANT_POSITIONING = 6
-    PLANT_ACT = 7
-    WAIT = 8
-    FINISH_ROW_FOLLOW = 9
-    BEFORE_ROW_CHANGE = 10
-    ROW_CHANGE = 11
-    BEFORE_ROW_FOLLOW = 12
-    FINISH = 13
+    INIT_BURST = 3
+    INIT_BEFORE_ROW_FOLLOW = 4
+    ROW_FOLLOW  = 5
+    ROW_FOLLOW_SLOW = 6
+    PLANT_POSITIONING = 7
+    PLANT_ACT = 8
+    WAIT = 9
+    FINISH_ROW_FOLLOW = 10
+    BEFORE_ROW_CHANGE = 11
+    ROW_CHANGE = 12
+    BURST = 13
+    BEFORE_ROW_FOLLOW = 14
+    FINISH = 15
 
 class StateMachineNode(Node):
 
@@ -98,7 +100,9 @@ class StateMachineNode(Node):
         self.row_change_latched = False
         self.forward_pair_latched = False
         self.backward_pair_latched = False
-        self.init_start_time = 0.0
+        #self.init_start_time = 0.0
+        self.burst_start_time = 0.0
+
 
         # Competition timer
         self.start_time = time.monotonic()
@@ -224,12 +228,12 @@ class StateMachineNode(Node):
 
         # ===== INIT: SLIDE LEFT =====
         if self.state == RobotState.INIT_SLIDE_LEFT:
-            if current_time - self.init_start_time < 2.0: # 1 seconds timeout for initialization
-                self.motion_pub.publish(Int32(data=0))  # STOP
-              # Short delay to read well the ultrasonic sesnsors at the beginning
-            else:
-                self.line_mode_pub.publish(Int32(data=6))   # NO LINE DETECTION
-                self.motion_mode_pub.publish(Int32(data=14))      # SLOW SLIDE RIGHT 
+            # if current_time - self.init_start_time < 2.0: # 1 seconds timeout for initialization
+            #     self.motion_pub.publish(Int32(data=0))  # STOP
+            #   # Short delay to read well the ultrasonic sesnsors at the beginning
+            # else:
+            self.line_mode_pub.publish(Int32(data=6))   # NO LINE DETECTION
+            self.motion_mode_pub.publish(Int32(data=14))      # SLOW SLIDE RIGHT 
 
             if self.init_slide_wall_1_detected:
                 self.get_logger().info("Init slide 1 complete")
@@ -252,8 +256,18 @@ class StateMachineNode(Node):
 
             if self.init_slide_wall_2_detected: #NEED TO ADD BEFORE ROW FOLLOW DETECTION
                 self.get_logger().info("Init row change complete")
-                self.state = RobotState.INIT_BEFORE_ROW_FOLLOW
+                self.burst_start_time = time.time()                     
+                self.state = RobotState.INIT_BURST
         
+        # ===== INIT: BURST=====
+        elif self.state == RobotState.INIT_BURST:
+            self.motion_mode_pub.publish(Int32(data=5))  # SLIDE RIGHT
+            self.line_mode_pub.publish(Int32(data=6))    # L1/L4
+
+            if time.time() - self.burst_start_time > 1.0: # 1.0s
+                self.get_logger().info("Init burst complete")
+                self.state = RobotState.INIT_BEFORE_ROW_FOLLOW
+
         #==== INIT: BEFORE ROW FORWARD =====
         elif self.state == RobotState.INIT_BEFORE_ROW_FOLLOW:
             self.motion_mode_pub.publish(Int32(data=16))  # SLIDE RIGHT EVEN ROW
@@ -421,6 +435,7 @@ class StateMachineNode(Node):
                 self.line_mode_pub.publish(Int32(data=6))  # NO_LINE_SENSORS
                 self.motion_mode_pub.publish(Int32(data=11))     # SLOW FORWARD
                 if self.falling_edges[0] == 1:  # Assuming L1 is the sensor
+                    
                     self.falling_edges = [0,0,0,0] # reset the falling edge            
                     self.get_logger().info("Going to change row from slow forward")
                     self.state = RobotState.ROW_CHANGE
@@ -428,6 +443,7 @@ class StateMachineNode(Node):
                 self.line_mode_pub.publish(Int32(data=6))  # NO_LINE_SENSORS
                 self.motion_mode_pub.publish(Int32(data=12))     # SLOW BACKWARD
                 if self.falling_edges[3] == 1:  # Assuming L4 is the sensor
+                    
                     self.falling_edges = [0,0,0,0] # reset the falling edge            
                     self.get_logger().info("Going to change row from slow backward")
                     self.state = RobotState.ROW_CHANGE
@@ -447,7 +463,8 @@ class StateMachineNode(Node):
 
                 if self.before_row_follow_detected:  # reuse a valid sensor
                     self.get_logger().info("Row change complete odd")
-                    self.state = RobotState.BEFORE_ROW_FOLLOW
+                    self.burst_start_time = time.time()
+                    self.state = RobotState.BURST
             
             elif self.row % 2 == 0: # EVEN
                 self.motion_mode_pub.publish(Int32(data=3)) # LEFT ROW CHANGE
@@ -455,7 +472,23 @@ class StateMachineNode(Node):
 
                 if self.before_row_follow_detected:  # reuse a valid sensor
                     self.get_logger().info("Row change complete even")
-                    self.state = RobotState.BEFORE_ROW_FOLLOW
+                    self.burst_start_time = time.time()
+                    self.state = RobotState.BURST
+
+        # ==================================================
+        # BURST
+        # ==================================================
+        elif self.state == RobotState.BURST:
+
+            self.line_mode_pub.publish(Int32(data=6))  # no line
+
+            if self.row % 2 == 1:
+                self.motion_mode_pub.publish(Int32(data=6))  # slow backward
+            elif self.row % 2 == 0:
+                self.motion_mode_pub.publish(Int32(data=5))  # slow forward
+
+            if time.time() - self.burst_start_time > 1.0: # 0.3s
+                self.state = RobotState.BEFORE_ROW_FOLLOW
         
         # ==================================================
         # BEFORE ROW CHANGE 
