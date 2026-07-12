@@ -100,7 +100,7 @@ class CameraProcessingNode(Node):
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             cap.set(cv2.CAP_PROP_AUTO_WB, 0) # Turn OFF auto white balance
-            cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 3000) # Manually set white balance (tune this!)
+            cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 1000) # Manually set white balance (tune this!)
             cap.set(cv2.CAP_PROP_AUTOFOCUS, 0) 
             cap.set(cv2.CAP_PROP_FOCUS, 300)
             

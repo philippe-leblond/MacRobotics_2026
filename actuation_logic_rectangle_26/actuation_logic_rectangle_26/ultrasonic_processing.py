@@ -330,9 +330,9 @@ class UltrasonicProcessingNode(Node):
 
         # ULTRASONIC SENSOR MOUNT ON L2/L3
         if self.current_row % 2 == 1:
-            arrival_detected = distances[0] >= 80.0  # U1 # NEED TO MEASURE
+            arrival_detected = distances[0] >= 82.0  # U1 # NEED TO MEASURE
         elif self.current_row % 2 == 0:
-            arrival_detected = distances[0] <= 53.0  # U1 # NEED TO MEASURE
+            arrival_detected = distances[0] <= 44.0  # U1 # NEED TO MEASURE
 
         self.row_change_arrival_pub.publish(Bool(data=arrival_detected))
         self.side_wall_pub.publish(Bool(data=arrival_detected))

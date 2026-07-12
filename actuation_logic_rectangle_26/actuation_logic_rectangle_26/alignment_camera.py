@@ -113,7 +113,7 @@ class PlantAlignmentNode(Node):
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self.cap.set(cv2.CAP_PROP_AUTO_WB, 0)
-        self.cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 3000)
+        self.cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 1000)
         self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 0) 
         self.cap.set(cv2.CAP_PROP_FOCUS, 300) #need to test the focus
 

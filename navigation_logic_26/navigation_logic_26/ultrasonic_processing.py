@@ -67,18 +67,18 @@ class UltrasonicProcessingNode(Node):
         #FLAT ULTRASONIC MOUNT L1/L4
         self.before_row_follow_config = {
             1: (0, 38.0), # Row 2 → U1 > 38
-            2: (0, 82.0), # Row 3 → U1 > 80
+            2: (0, 75.0), # Row 3 → U1 > 80
             3: (0, 114.0), # Row 4 → U1 > 90
-            4: (2, 48.0), # Row 5 → U3 < 48
+            4: (2, 49.0), # Row 5 → U3 < 48
             5: (2, 10.0), # Row 6 → U3 < 9
         }
         
         self.side_wall_config = {
 
             1: (0, 45.0),  # Row 2 → U3 > 59
-            2: (0, 88.0),  # Row 3 → U3 > 89
-            3: (0, 120.0),  # Row 4 → U1 < 84
-            4: (2, 35.0),  # Row 5 → U1 < 54
+            2: (0, 81.0),  # Row 3 → U3 > 89
+            3: (0, 121.0),  # Row 4 → U1 < 84
+            4: (2, 43.0),  # Row 5 → U1 < 54
             5: (2, 5.0)   # Row 6 → U1 < 24
         }
 

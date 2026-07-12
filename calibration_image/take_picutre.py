@@ -12,7 +12,7 @@ cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 cap.set(cv2.CAP_PROP_AUTO_WB, 0)
-cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 3000)
+cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 1000)
 
 if not cap.isOpened():
     print("ERROR: Could not open camera")

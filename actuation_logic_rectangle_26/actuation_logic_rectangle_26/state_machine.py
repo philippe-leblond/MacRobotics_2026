@@ -398,7 +398,12 @@ class StateMachineNode(Node):
         elif self.state == RobotState.PLANT_ACT:
                 self.motion_mode_pub.publish(Int32(data=0))
                 if self.serServo is not None:
-                    self.serServo.write(b"<servo2>")
+                    if self.row % 2 == 1:
+                        self.serServo.write(b"<servo2>")
+                    
+                    elif self.row % 2 == 0:
+                        self.serServo.write(b"<servo2>")
+
                 self.get_logger().info("Plant knocked down, waiting 1 second")
                 self.wait_start = time.time()
                 self.state = RobotState.WAIT

@@ -96,19 +96,19 @@ def main():
             mask=yellow_mask
         )
 
-        cv2.imshow("Original Image", image)
+        # cv2.imshow("Original Image", image)
         cv2.imshow("Green Mask", green_mask)
         cv2.imshow("Yellow Mask", yellow_mask)
 
-        cv2.imshow(
-            "Green Detection Preview",
-            green_preview
-        )
+        # cv2.imshow(
+        #     "Green Detection Preview",
+        #     green_preview
+        # )
 
-        cv2.imshow(
-            "Yellow Detection Preview",
-            yellow_preview
-        )
+        # cv2.imshow(
+        #     "Yellow Detection Preview",
+        #     yellow_preview
+        # )
 
         key = cv2.waitKey(1) & 0xFF
 
