@@ -16,8 +16,8 @@ MAX_OUTPUT = 0.25
 
 REQUIRED_CENTERED_FRAMES = 3
 
-OFFSET_RATIO_YELLOW_RIGHT = -0.05 # for the actuation task
-OFFSET_RATIO_YELLOW_LEFT = -0.27
+OFFSET_RATIO_YELLOW_RIGHT = 0.30 # for the actuation task
+OFFSET_RATIO_YELLOW_LEFT = -0.17
 
 prev_error = 0.0
 prev_time = time.monotonic()
@@ -91,7 +91,7 @@ cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
 # Fixed white balance
 cap.set(cv2.CAP_PROP_AUTO_WB, 0)
-cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 3000)
+cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 1000)
 cap.set(cv2.CAP_PROP_AUTOFOCUS, 0) 
 cap.set(cv2.CAP_PROP_FOCUS, 300) #need to test the focus
 

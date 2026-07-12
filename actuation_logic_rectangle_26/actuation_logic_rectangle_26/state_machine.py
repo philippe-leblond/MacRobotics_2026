@@ -379,7 +379,7 @@ class StateMachineNode(Node):
         # ================================================== 
 
         elif self.state == RobotState.PLANT_POSITIONING:
-            self.between_dashes = False
+            # self.between_dashes = False
 
             self.motion_mode_pub.publish(Int32(data=15))  # PID CONTROL
             self.line_mode_pub.publish(Int32(data=6))    # NO LINE SENSORS

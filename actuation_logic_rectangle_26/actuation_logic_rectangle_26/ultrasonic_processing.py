@@ -49,22 +49,22 @@ class UltrasonicProcessingNode(Node):
         self.row_odd_plants = [
 
             # sensor, detection_op, detect_threshold, pid_target
-
+            (3, ">", 12), # 36 5
             (3, ">", 42), # 42 0
             (3, ">", 65), # 65 1
             (1, "<", 109), # 114 2 
             (1, "<", 85), # 87 3
             (1, "<", 61), # 61 4 
-            (1, "<", 36), # 36 5
+            
         ]
 
         self.row_even_plants = [
+            (1, ">", 12), # 38
             (1, ">", 39), # 39
             (1, ">", 61), # 61
             (1, ">", 87), # 87
             (1, ">", 113), # 113
             (3, "<", 64), # 64
-            (3, "<", 38), # 38
         ]
 
         self.current_plant = 0
@@ -73,9 +73,9 @@ class UltrasonicProcessingNode(Node):
         self.between_dashes = True
         
         # # Dash lockout
-        # self.dash_lockout = True
-        # self.dash_lockout_start = 0.0
-        # self.dash_lockout_duration = 3.0
+        self.dash_lockout = True
+        self.dash_lockout_start = 0.0
+        self.dash_lockout_duration = 2.0
 
         # -------------------------
         # State input
@@ -171,9 +171,10 @@ class UltrasonicProcessingNode(Node):
             )
 
             self.plant_latched = False
+            self.between_dashes = False
 
-            # self.dash_lockout = True
-            # self.dash_lockout_start = time.monotonic()
+            self.dash_lockout = True
+            self.dash_lockout_start = time.monotonic()
 
         self.current_plant = msg.data
 
@@ -182,7 +183,7 @@ class UltrasonicProcessingNode(Node):
         if msg.data != self.current_row:
             self.get_logger().info("Row changed → resetting plant latch")
             self.plant_latched = False
-            self.between_dashes = True
+            self.between_dashes = False
             self.current_plant = 0   # optional safety reset
 
         self.current_row = msg.data
@@ -206,15 +207,18 @@ class UltrasonicProcessingNode(Node):
                 f"current_plant={self.current_plant} "
                 f"motion={self.current_motion_state} "
                 f"latched={self.plant_latched}"
+                f"between_dashes={self.between_dashes} "
+                f"plant_latched={self.plant_latched} "
+                f"dash_lockout={self.dash_lockout}"
             )
             self._last_plant_log_time = now
 
-        # now = time.monotonic()
+        now = time.monotonic()
 
-        # if self.dash_lockout:
-        #     if now - self.dash_lockout_start >= self.dash_lockout_duration:
-        #         self.dash_lockout = False
-        #         self.get_logger().info("Dash lockout expired")
+        if self.dash_lockout:
+            if now - self.dash_lockout_start >= self.dash_lockout_duration:
+                self.dash_lockout = False
+                self.get_logger().info("Dash lockout expired")
 
         # Pass-through
         self.filtered_pub.publish(Float32MultiArray(data=distances))
@@ -273,12 +277,14 @@ class UltrasonicProcessingNode(Node):
             if (
                     not self.plant_latched
                     and not self.between_dashes
-                    # and not self.dash_lockout
+                    and not self.dash_lockout
                 ):
                 if op == ">" and distance > threshold:
                     self.between_dashes = True
                 elif op == "<" and distance < threshold:
                     self.between_dashes = True
+                else:
+                    self.between_dashes = False
 
                 if self.between_dashes:
                     self.plant_latched = True
