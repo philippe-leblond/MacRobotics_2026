@@ -52,6 +52,7 @@ class StateMachineNode(Node):
         self.row_index_pub = self.create_publisher(Int32, '/row_index', 10)
         self.plant_index_pub = self.create_publisher(Int32, '/plant_index', 10)
         self.positioning_camera_pub = self.create_publisher(Bool, '/plant_detected_camera', 10) # NEED TO CREATE IN THE FUTUR CAMERA NODE
+        # self.reset_between_dashes_pub = self.create_publisher(Bool, '/reset_between_dashes', 10)
 
 
         # ---------- Subscriptions ----------
@@ -379,7 +380,8 @@ class StateMachineNode(Node):
         # ================================================== 
 
         elif self.state == RobotState.PLANT_POSITIONING:
-            # self.between_dashes = False
+            # reset_between_dashes = True
+            # self.reset_between_dashes_pub.publish(Bool(data=reset_between_dashes))
 
             self.motion_mode_pub.publish(Int32(data=15))  # PID CONTROL
             self.line_mode_pub.publish(Int32(data=6))    # NO LINE SENSORS
@@ -388,6 +390,8 @@ class StateMachineNode(Node):
             if self.plant_aligned_camera:
                 self.motion_mode_pub.publish(Int32(data=0))
                 self.positioning_camera_pub.publish(Bool(data=False))
+                # reset_between_dashes = False
+                # self.reset_between_dashes_pub.publish(Bool(data=reset_between_dashes))
                 self.get_logger().info("Plant aligned")
                 self.state = RobotState.PLANT_ACT
 

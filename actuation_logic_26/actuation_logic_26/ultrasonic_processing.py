@@ -49,12 +49,12 @@ class UltrasonicProcessingNode(Node):
         self.row_odd_plants = [
 
             # sensor, detection_op, detect_threshold, pid_target
-            (3, ">", 12), # 36 5
-            (3, ">", 42), # 42 0
-            (3, ">", 65), # 65 1
-            (1, "<", 109), # 114 2 
-            (1, "<", 85), # 87 3
-            (1, "<", 61), # 61 4 
+            (3, ">", 12), # 36 0
+            (3, ">", 42), # 42 1
+            (3, ">", 65), # 65 2
+            (1, "<", 109), # 114 3 
+            (1, "<", 85), # 87 4
+            (1, "<", 61), # 61 5 
             
         ]
 
@@ -70,12 +70,12 @@ class UltrasonicProcessingNode(Node):
         self.current_plant = 0
         self.plant_latched = False
 
-        self.between_dashes = True
+        self.between_dashes = False
         
         # # Dash lockout
-        self.dash_lockout = True
-        self.dash_lockout_start = 0.0
-        self.dash_lockout_duration = 2.0
+        # self.dash_lockout = True
+        # self.dash_lockout_start = 0.0
+        # self.dash_lockout_duration = 2.0
 
         # -------------------------
         # State input
@@ -85,6 +85,8 @@ class UltrasonicProcessingNode(Node):
 
 
         self._last_plant_log_time = 0.0 # logging purpose only
+
+        # self.reset_between_dashes = False
 
         # -------------------------
         # Publishers
@@ -159,6 +161,13 @@ class UltrasonicProcessingNode(Node):
             10
         )
 
+        # self.create_subscription(
+        #     Bool,
+        #     '/reset_between_dashes',
+        #     self.reset_between_dashes_callback,
+        #     10
+        # )
+
         self.get_logger().info("Ultrasonic processing node ready")
 
     # =========================
@@ -173,8 +182,8 @@ class UltrasonicProcessingNode(Node):
             self.plant_latched = False
             self.between_dashes = False
 
-            self.dash_lockout = True
-            self.dash_lockout_start = time.monotonic()
+            # self.dash_lockout = True
+            # self.dash_lockout_start = time.monotonic()
 
         self.current_plant = msg.data
 
@@ -190,6 +199,9 @@ class UltrasonicProcessingNode(Node):
 
     def motion_mode_callback(self, msg):
         self.current_motion_state = msg.data
+    
+    # def reset_between_dashes_callback(self, msg):
+    #     self.reset_between_dashes = msg.data
 
     # =========================
     # Main processing
@@ -208,17 +220,17 @@ class UltrasonicProcessingNode(Node):
                 f"motion={self.current_motion_state} "
                 f"latched={self.plant_latched}"
                 f"between_dashes={self.between_dashes} "
-                f"plant_latched={self.plant_latched} "
-                f"dash_lockout={self.dash_lockout}"
+                # f"plant_latched={self.plant_latched} "
+                # f"dash_lockout={self.dash_lockout}"
             )
             self._last_plant_log_time = now
 
-        now = time.monotonic()
+        # now = time.monotonic()
 
-        if self.dash_lockout:
-            if now - self.dash_lockout_start >= self.dash_lockout_duration:
-                self.dash_lockout = False
-                self.get_logger().info("Dash lockout expired")
+        # if self.dash_lockout:
+        #     if now - self.dash_lockout_start >= self.dash_lockout_duration:
+        #         self.dash_lockout = False
+        #         self.get_logger().info("Dash lockout expired")
 
         # Pass-through
         self.filtered_pub.publish(Float32MultiArray(data=distances))
@@ -275,9 +287,9 @@ class UltrasonicProcessingNode(Node):
             distance = distances[sensor]
 
             if (
-                    not self.plant_latched
-                    and not self.between_dashes
-                    and not self.dash_lockout
+                    # not self.plant_latched
+                    not self.between_dashes
+                    # and not self.dash_lockout
                 ):
                 if op == ">" and distance > threshold:
                     self.between_dashes = True
@@ -297,6 +309,9 @@ class UltrasonicProcessingNode(Node):
                     )
 
         self.between_dashes_pub.publish(Bool(data=self.between_dashes))
+
+        # if self.reset_between_dashes == False:
+        #     self.between_dashes = False
 
         # -------------------------
         # Before row follow detection
