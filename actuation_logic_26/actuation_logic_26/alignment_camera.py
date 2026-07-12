@@ -20,9 +20,8 @@ PIXEL_DEADBAND = 30 # 20 IS OK BUT STILL A LOT OF CORRECTIONS
 MAX_OUTPUT = 0.35
 REQUIRED_CENTERED_FRAMES = 3
 
-OFFSET_RATIO_YELLOW_RIGHT = -0.05
-OFFSET_RATIO_YELLOW_LEFT = -0.27
-
+OFFSET_RATIO_YELLOW_RIGHT = 0.30 # for the actuation task
+OFFSET_RATIO_YELLOW_LEFT = -0.17
 
 class PlantAlignmentNode(Node):
 
@@ -37,6 +36,10 @@ class PlantAlignmentNode(Node):
         self.prev_time = time.monotonic()
 
         self.centered_counter = 0
+
+        self.last_valid_detection_time = time.monotonic()
+        self.servo_triggered = False
+
 
         (
             self.yellow_lower,
@@ -109,9 +112,12 @@ class PlantAlignmentNode(Node):
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self.cap.set(cv2.CAP_PROP_AUTO_WB, 0)
-        self.cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 3000)
+        self.cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 1000)
+        self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 0) 
+        self.cap.set(cv2.CAP_PROP_FOCUS, 300) #need to test the focus
 
-        time.sleep(2)
+
+        time.sleep(0.5) #before 2
 
         for _ in range(5):
             self.cap.read()
@@ -169,10 +175,10 @@ class PlantAlignmentNode(Node):
         if self.cap is None:
             return
         
-        time.sleep(0.2)
+        # time.sleep(0.2)
 
-        for _ in range(3):
-            self.cap.read()
+        # for _ in range(3):
+        #     self.cap.read()
 
         ret, image = self.cap.read()
 
@@ -210,6 +216,10 @@ class PlantAlignmentNode(Node):
             cv2.CHAIN_APPROX_SIMPLE
         )
 
+        # TO HIT IF THE ALLIGNMENT DOESN'T FIND ANYTHING AFTER 5S
+        self.last_valid_detection_time = time.monotonic()
+        self.servo_triggered = False
+
         yellow = [
             c for c in yellow_contours
             if cv2.contourArea(c) > MIN_AREA
@@ -222,28 +232,16 @@ class PlantAlignmentNode(Node):
 
         if not yellow:
             self.get_logger().warn("NO YELLOW CONTOUR")
-
-            self.pid_pub.publish(
-                Float32(data=0.0)
-            )
-
             self.positioning_pub.publish(
                 Bool(data=True)
             )
-
             return
 
         if not green:
             self.get_logger().warn("NO GREEN CONTOUR")
-
-            self.pid_pub.publish(
-                Float32(data=0.0)
-            )
-
             self.positioning_pub.publish(
                 Bool(data=True)
             )
-
             return
 
         self.get_logger().warn(
@@ -251,14 +249,22 @@ class PlantAlignmentNode(Node):
             f"green_contours={len(green)}"
         )
         
-        if not yellow and not green:
-            self.pid_pub.publish(
-                Float32(data=0.0)
+        if not yellow or not green:
+
+            elapsed = (
+                time.monotonic()
+                - self.last_valid_detection_time
             )
 
-            self.positioning_pub.publish(
-                Bool(data=False)
-            )
+            if elapsed > 5.0 and not self.servo_triggered:
+
+                self.get_logger().warn(
+                    "Plant lost for 5 seconds!"
+                )
+
+                self.positioning_pub.publish(Bool(data=True))
+
+                self.servo_triggered = True
 
             return
 
@@ -266,7 +272,7 @@ class PlantAlignmentNode(Node):
             yellow,
             key=cv2.contourArea
         )
-
+        
         green_contour = max(
             green,
             key=cv2.contourArea
