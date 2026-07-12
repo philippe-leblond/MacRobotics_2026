@@ -12,7 +12,7 @@ from std_msgs.msg import Float32
 
 CAMERA_INDEX = "/dev/v4l/by-id/usb-XZC-260109-A_Streaming_Webcam_Audio_01.00.00-video-index0"
 
-MIN_AREA = 2500
+MIN_AREA = 2000 #before 2500
 KP = 0.002
 KD = 0.001
 
@@ -20,8 +20,8 @@ PIXEL_DEADBAND = 30 # 25 IS OK BUT STILL A LOT OF CORRECTIONS
 MAX_OUTPUT = 0.35
 REQUIRED_CENTERED_FRAMES = 3
 
-OFFSET_RATIO_YELLOW_RIGHT = 0.2
-OFFSET_RATIO_YELLOW_LEFT = -0.3
+OFFSET_RATIO_YELLOW_RIGHT = 0.40
+OFFSET_RATIO_YELLOW_LEFT = -0.17 # NEED TO CALIBRATE THIS PART
 
 
 class PlantAlignmentNode(Node):
@@ -113,7 +113,7 @@ class PlantAlignmentNode(Node):
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self.cap.set(cv2.CAP_PROP_AUTO_WB, 0)
-        self.cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 3000)
+        self.cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 1000)
         self.cap.set(cv2.CAP_PROP_AUTOFOCUS, 0) 
         self.cap.set(cv2.CAP_PROP_FOCUS, 300) #need to test the focus
 

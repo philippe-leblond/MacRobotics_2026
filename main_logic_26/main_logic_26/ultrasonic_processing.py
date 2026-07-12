@@ -40,44 +40,44 @@ class UltrasonicProcessingNode(Node):
 
             # Sensor index, operator, between_dashes
             1: [
-                (3, ">", 15), # 42 0 #still not to test the 15
-                (3, ">", 42), # 65 1
-                (3, ">", 65), # 114 2 
-                (1, "<", 114), # 87 3
-                (1, "<", 87), # 61 4 
-                (1, "<", 61), # 36 5
+                (3, ">", 12), # 36 0
+                (3, ">", 42), # 42 1
+                (3, ">", 65), # 65 2
+                (1, "<", 109), # 114 3 
+                (1, "<", 85), # 87 4
+                (1, "<", 61), # 61 5 
             ],
             2: [
-                (1, ">", 15), # 39 #still need to test the 15
-                (1, ">", 39), # 61
-                (1, ">", 61), # 87
-                (1, ">", 87), # 113
-                (1, ">", 113), # 64
-                (3, "<", 64), # 38
+                (1, ">", 12), # 38
+                (1, ">", 39), # 39
+                (1, ">", 61), # 61
+                (1, ">", 87), # 87
+                (1, ">", 113), # 113
+                (3, "<", 64), # 64
             ],
             3: [
-                (3, ">", 15), # 42 0 #still not to test the 15
-                (3, ">", 42), # 65 1
-                (3, ">", 65), # 114 2 
-                (1, "<", 114), # 87 3
-                (1, "<", 87), # 61 4 
-                (1, "<", 61), # 36 5
+                (3, ">", 12), # 36 0
+                (3, ">", 42), # 42 1
+                (3, ">", 65), # 65 2
+                (1, "<", 109), # 114 3 
+                (1, "<", 85), # 87 4
+                (1, "<", 61), # 61 5 
             ],
             4: [
-                (1, ">", 15), # 39 #still need to test the 15
-                (1, ">", 39), # 61
-                (1, ">", 61), # 87
-                (1, ">", 87), # 113
-                (1, ">", 113), # 64
-                (3, "<", 64), # 38
+                (1, ">", 12), # 38
+                (1, ">", 39), # 39
+                (1, ">", 61), # 61
+                (1, ">", 87), # 87
+                (1, ">", 113), # 113
+                (3, "<", 64), # 64
             ],
             5: [
-                (3, ">", 15), # 42 0 #still not to test the 15
-                (3, ">", 42), # 65 1
-                (3, ">", 65), # 114 2 
-                (1, "<", 114), # 87 3
-                (1, "<", 87), # 61 4 
-                (1, "<", 61), # 36 5
+                (3, ">", 12), # 36 0
+                (3, ">", 42), # 42 1
+                (3, ">", 65), # 65 2
+                (1, "<", 109), # 114 3 
+                (1, "<", 85), # 87 4
+                (1, "<", 61), # 61 5 
             ],
         }
 
@@ -108,18 +108,20 @@ class UltrasonicProcessingNode(Node):
         # row: (sensor_index, threshold_cm)
         # U1 → index 0, U2 → index 1, U3 → index 2, U4 → index 3
         # -------------------------
+
         self.before_row_follow_config = {
-            1: (0, 74.0), # Row 2 → U3 > 54
-            2: (0, 115.0), # Row 3 → U3 > 84
-            3: (2, 49.0), # Row 4 → U1 < 86
-            4: (2, 9.0), # Row 5 → U1 < 56
+            1: (0, 75.0), # Row 2 → U1 > 38
+            2: (0, 114.0), # Row 3 → U1 > 80
+            3: (0, 49.0), # Row 4 → U1 > 90
+            4: (2, 9.0), # Row 5 → U3 < 48
         }
 
         self.side_wall_config = {
-            1: (0, 82.0),
-            2: (0, 122.0),
-            3: (2, 35.0),
-            4: (2, 3.0),
+
+            1: (0, 81.0),  # Row 2 → U3 > 59
+            2: (0, 121.0),  # Row 3 → U3 > 89
+            3: (0, 43.0),  # Row 4 → U1 < 84
+            4: (2, 5.0),  # Row 5 → U1 < 54
         }
         
         # 1: U1>45 cm
@@ -245,7 +247,7 @@ class UltrasonicProcessingNode(Node):
         elif msg.data != self.current_plant:
             self.get_logger().warn("🔄 Resetting latch and between dashes for plant change")
             self.plant_latched = False
-            # self.between_dashes = False
+            self.between_dashes = False
 
             # self.dash_lockout = True
             # self.dash_lockout_start = time.monotonic()
@@ -255,6 +257,8 @@ class UltrasonicProcessingNode(Node):
         if msg.data != self.current_row:
             self.get_logger().warn("🔄 Row changed → resetting latch")
             self.plant_latched = False
+            self.between_dashes = False
+
 
         self.current_row = msg.data
 
@@ -340,14 +344,16 @@ class UltrasonicProcessingNode(Node):
             distance = distances[sensor]
 
             if (
-                    not self.plant_latched
-                    and not self.between_dashes
+                    # not self.plant_latched
+                    not self.between_dashes
                     # and not self.dash_lockout
                 ):
                 if op == ">" and distance > threshold:
                     self.between_dashes = True
-                if op == "<" and distance < threshold:
+                elif op == "<" and distance < threshold:
                     self.between_dashes = True
+                else:
+                    self.between_dashes = False
 
                 if self.between_dashes:
                     self.plant_latched = True

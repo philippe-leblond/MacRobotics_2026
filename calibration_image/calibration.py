@@ -47,7 +47,7 @@ def main():
     green_lower = np.array([35, 80, 80], dtype=np.uint8)
     green_upper = np.array([85, 255, 255], dtype=np.uint8)
 
-    yellow_lower = np.array([15, 100, 80], dtype=np.uint8)
+    yellow_lower = np.array([15, 151, 114], dtype=np.uint8)
     yellow_upper = np.array([35, 255, 255], dtype=np.uint8)
 
     create_hsv_slider_window(

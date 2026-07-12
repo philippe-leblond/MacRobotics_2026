@@ -5,7 +5,7 @@ import time
 
 CAMERA_INDEX = "/dev/v4l/by-id/usb-XZC-260109-A_Streaming_Webcam_Audio_01.00.00-video-index0"
 
-MIN_AREA = 2500
+MIN_AREA = 2000 #before 2500
 FRAME_RATE = 15
 
 KP = 0.003
@@ -16,7 +16,7 @@ MAX_OUTPUT = 0.25
 
 REQUIRED_CENTERED_FRAMES = 3
 
-OFFSET_RATIO_YELLOW_RIGHT = 0.30 # for the actuation task
+OFFSET_RATIO_YELLOW_RIGHT = 0.40 # for the actuation task
 OFFSET_RATIO_YELLOW_LEFT = -0.17
 
 prev_error = 0.0

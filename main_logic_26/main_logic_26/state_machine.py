@@ -106,6 +106,7 @@ class StateMachineNode(Node):
         # self.init_start_time = 0.0
         self.burst_start_time = 0.0
         self.mid_row5_lidar_passed = False
+        self.passed_finished_row =False
 
         self.timer = self.create_timer(0.1, self.step)
 
@@ -201,7 +202,7 @@ class StateMachineNode(Node):
             #   # Short delay to read well the ultrasonic sesnsors at the beginning
             # else:
             self.line_mode_pub.publish(Int32(data=6))   # NO LINE DETECTION
-            self.motion_mode_pub.publish(Int32(data=8))      # SLOW SLIDE RIGHT 
+            self.motion_mode_pub.publish(Int32(data=14))      # SLOW SLIDE RIGHT 
 
             if self.init_slide_wall_1_detected:
                 self.get_logger().info("Init slide 1 complete")
@@ -256,6 +257,7 @@ class StateMachineNode(Node):
         # ROW FOLLOW
         # ==================================================
         elif self.state == RobotState.ROW_FOLLOW:
+
             self.row_index_pub.publish(Int32(data=self.row))
             self.row_change_latched = False #reset row change latch at the beginning of each row follow to avoid issues with the row change detection in the ultrasonic node and the row change process in general
             if self.row % 2 == 1:
@@ -309,6 +311,11 @@ class StateMachineNode(Node):
                     self.state = RobotState.PLANT_DETECTED
                     
                     # self.state = RobotState.ROW_SLOW
+            
+            if self.passed_finished_row:
+                self.plant_count = 0
+                self.plant_index_pub.publish(Int32(data=self.plant_count))
+                self.passed_finished_row = False
 
 
         # ==================================================
@@ -347,7 +354,7 @@ class StateMachineNode(Node):
         # ================================================== 
         elif self.state == RobotState.PLANT_DETECTED:
 
-            self.between_dashes = False
+            # self.between_dashes = False
 
             if not self.camera_request_sent:
                 self.camera_request_pub.publish(Bool(data=True))
@@ -445,6 +452,8 @@ class StateMachineNode(Node):
         # ==================================================
         elif self.state == RobotState.FINISH_ROW:
 
+            self.passed_finished_row = True
+
             if self.row % 2 == 1:
                 # Forward row
                 self.motion_mode_pub.publish(Int32(data=1))
@@ -456,9 +465,6 @@ class StateMachineNode(Node):
 
             if self.before_row_change_detected:
                 self.get_logger().info(f"Row {self.row} finished")
-
-                self.plant_count = 0
-                self.plant_index_pub.publish(Int32(data=self.plant_count))
                 
                 # Decide next state
                 if self.row >= self.max_rows:
@@ -536,27 +542,42 @@ class StateMachineNode(Node):
 
             self.line_mode_pub.publish(Int32(data=6))  # no line
 
-            if self.row == 1:
-                self.motion_mode_pub.publish(Int32(data=6))  # slow backward
-                if time.time() - self.burst_start_time > 1.0: # 0.3s
-                    self.state = RobotState.BEFORE_ROW_FOLLOW
+            # if self.row == 1:
+            #     self.motion_mode_pub.publish(Int32(data=6))  # slow backward
+            #     if time.time() - self.burst_start_time > 1.0: # 0.3s
+            #         self.state = RobotState.BEFORE_ROW_FOLLOW
             
-            elif self.row == 3:
-                self.motion_mode_pub.publish(Int32(data=6))  # slow backward
-                if time.time() - self.burst_start_time > 1.0: # 0.3s
-                    self.state = RobotState.BEFORE_ROW_FOLLOW
+            # elif self.row == 3:
+            #     self.motion_mode_pub.publish(Int32(data=6))  # slow backward
+            #     if time.time() - self.burst_start_time > 1.0: # 0.3s
+            #         self.state = RobotState.BEFORE_ROW_FOLLOW
 
-            elif self.row == 5:
-                self.motion_mode_pub.publish(Int32(data=6))  # slow backward
-                if time.time() - self.burst_start_time > 1.0: # 0.3s
+            # elif self.row == 5:
+            #     self.motion_mode_pub.publish(Int32(data=6))  # slow backward
+            #     if time.time() - self.burst_start_time > 1.0: # 0.3s
+            #         self.state = RobotState.BEFORE_ROW_FOLLOW
+
+            # elif self.row % 2 == 0:
+            #     self.motion_mode_pub.publish(Int32(data=10))  # slow forward
+            #     if time.time() - self.burst_start_time > 0.4: # 0.3s
+            #         self.motion_mode_pub.publish(Int32(data=5))  # slow forward
+            #         self.state = RobotState.BEFORE_ROW_FOLLOW
+
+            if self.row % 2 == 1:
+                self.motion_mode_pub.publish(Int32(data=6))  
+                if time.time() - self.burst_start_time >= 0.5: # 0.5s
+                    # self.motion_pub.publish(Int32(data=6))  # before not comment out
                     self.state = RobotState.BEFORE_ROW_FOLLOW
 
             elif self.row % 2 == 0:
-                self.motion_mode_pub.publish(Int32(data=10))  # slow forward
-                if time.time() - self.burst_start_time > 0.4: # 0.3s
-                    self.motion_mode_pub.publish(Int32(data=5))  # slow forward
-                    self.state = RobotState.BEFORE_ROW_FOLLOW
+                #ultrasonic mount flat L1/L4
+                # self.motion_pub.publish(Int32(data=10))
+                #ultrasonic mount flat L2/L3
+                self.motion_mode_pub.publish(Int32(data=5))  
+                if time.time() - self.burst_start_time >= 0.5: # before 0.3
+                    # self.motion_pub.publish(Int32(data=5))  
 
+                    self.state = RobotState.BEFORE_ROW_FOLLOW
         
         # ==================================================
         # BEFORE ROW CHANGE 

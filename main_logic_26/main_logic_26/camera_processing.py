@@ -13,8 +13,8 @@ from ament_index_python.packages import get_package_share_directory
 CAMERA_INDEX = "/dev/v4l/by-id/usb-XZC-260109-A_Streaming_Webcam_Audio_01.00.00-video-index0"
 FRAME_RATE = 5
 
-MIN_AREA = 2500
-HEIGHT_THRESHOLD = 125
+MIN_AREA = 2000 #before 2500
+HEIGHT_THRESHOLD = 150 #before 100 identifies empty as singles
 
 
 # -----------------------------
@@ -110,7 +110,7 @@ class CameraProcessingNode(Node):
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             cap.set(cv2.CAP_PROP_AUTO_WB, 0)
-            cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 3000)
+            cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 1000)
             cap.set(cv2.CAP_PROP_AUTOFOCUS, 0) 
             cap.set(cv2.CAP_PROP_FOCUS, 300)
 
