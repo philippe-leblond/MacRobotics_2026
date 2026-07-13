@@ -54,12 +54,12 @@ def generate_launch_description():
             output='screen'
         ),
 
-        # Node(
-        #     package='main_logic_26',
-        #     executable='display',
-        #     name='display_node',
-        #     output='screen'
-        # ),
+        Node(
+            package='main_logic_26',
+            executable='display',
+            name='display_node',
+            output='screen'
+        ),
 
         Node(
             package='main_logic_26',
