@@ -112,7 +112,7 @@ class UltrasonicProcessingNode(Node):
         self.before_row_follow_config = {
             1: (0, 75.0), # Row 2 → U1 > 38
             2: (0, 114.0), # Row 3 → U1 > 80
-            3: (0, 49.0), # Row 4 → U1 > 90
+            3: (2, 49.0), # Row 4 → U1 > 90
             4: (2, 9.0), # Row 5 → U3 < 48
         }
 
@@ -120,7 +120,7 @@ class UltrasonicProcessingNode(Node):
 
             1: (0, 81.0),  # Row 2 → U3 > 59
             2: (0, 121.0),  # Row 3 → U3 > 89
-            3: (0, 43.0),  # Row 4 → U1 < 84
+            3: (2, 43.0),  # Row 4 → U1 < 84
             4: (2, 5.0),  # Row 5 → U1 < 54
         }
         
