@@ -13,8 +13,8 @@ from ament_index_python.packages import get_package_share_directory
 CAMERA_INDEX = "/dev/v4l/by-id/usb-XZC-260109-A_Streaming_Webcam_Audio_01.00.00-video-index0"
 FRAME_RATE = 5
 
-MIN_AREA = 2000 #before 2500
-HEIGHT_THRESHOLD = 150 #before 100 identifies empty as singles
+MIN_AREA = 2500 #before 2000 or 1750
+HEIGHT_THRESHOLD = 125 #before 100 identifies empty as singles
 
 
 # -----------------------------
